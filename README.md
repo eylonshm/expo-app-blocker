@@ -5,6 +5,10 @@ Cross-platform app blocking module for Expo. Block other apps and redirect users
 **Android**: UsageStatsManager + Foreground Service + System Overlay
 **iOS**: Screen Time API (FamilyControls + ManagedSettings + DeviceActivity)
 
+## Demo
+
+https://github.com/eylonshm/expo-app-blocker/raw/master/docs/demo.mp4
+
 > **iOS requires Apple Developer Portal setup before building.** See [Prerequisites](#prerequisites) for details.
 
 <details>
