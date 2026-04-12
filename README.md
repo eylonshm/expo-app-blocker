@@ -7,7 +7,8 @@ Cross-platform app blocking module for Expo. Block other apps and redirect users
 
 > **iOS requires Apple Developer Portal setup before building.** See [Prerequisites](#prerequisites) for details.
 
-## Table of Contents
+<details>
+<summary><strong>Table of Contents</strong></summary>
 
 - [Features](#features)
 - [Quick Start](#quick-start)
@@ -29,6 +30,8 @@ Cross-platform app blocking module for Expo. Block other apps and redirect users
 - [Full Example: iOS App Blocker](#full-example-ios-app-blocker)
 - [Platform Notes](#platform-notes)
 - [How It Works](#how-it-works)
+
+</details>
 
 ## Features
 
