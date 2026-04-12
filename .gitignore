@@ -1,7 +1,6 @@
 node_modules/
 build/
 .expo/
-ios/
 android/build/
 *.tsbuildinfo
 .DS_Store
