@@ -257,18 +257,19 @@ function withAppBlockerIOS(config, pluginConfig) {
         }
       }
 
-      // Copy shield icon to ShieldConfiguration target assets
+      // Copy shield icon to ShieldConfiguration and ShieldAction target assets
       const shieldIcon = pluginConfig?.ios?.shield?.icon;
       if (shieldIcon) {
         const projectRoot = path.dirname(platformRoot);
         const iconSrc = path.resolve(projectRoot, shieldIcon);
-        const assetsDir = path.join(targetsDir, "ShieldConfiguration", "assets");
         if (fs.existsSync(iconSrc)) {
-          if (!fs.existsSync(assetsDir)) {
-            fs.mkdirSync(assetsDir, { recursive: true });
+          for (const target of ["ShieldConfiguration", "ShieldAction"]) {
+            const assetsDir = path.join(targetsDir, target, "assets");
+            if (!fs.existsSync(assetsDir)) {
+              fs.mkdirSync(assetsDir, { recursive: true });
+            }
+            fs.copyFileSync(iconSrc, path.join(assetsDir, "shield-icon.png"));
           }
-          const iconDest = path.join(assetsDir, "shield-icon.png");
-          fs.copyFileSync(iconSrc, iconDest);
         }
       }
 

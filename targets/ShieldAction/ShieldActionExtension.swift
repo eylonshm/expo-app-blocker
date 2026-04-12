@@ -72,6 +72,13 @@ class ShieldActionExtension: ShieldActionDelegate {
     content.sound = .default
     content.userInfo = ["link": "/unlock"]
 
+    // Attach the app icon to the notification
+    if let iconURL = iconFileURL() {
+      if let attachment = try? UNNotificationAttachment(identifier: "icon", url: iconURL, options: nil) {
+        content.attachments = [attachment]
+      }
+    }
+
     let request = UNNotificationRequest(
       identifier: pendingUnlockNotificationIdentifier,
       content: content,
@@ -82,5 +89,17 @@ class ShieldActionExtension: ShieldActionDelegate {
     center.add(request) { error in
       completion(error == nil)
     }
+  }
+
+  private func iconFileURL() -> URL? {
+    let bundle = Bundle(for: type(of: self))
+    // Try shield-icon first (copied by config plugin)
+    if let url = bundle.url(forResource: "shield-icon", withExtension: "png") { return url }
+    // Try from app group shared container
+    if let container = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier) {
+      let sharedIcon = container.appendingPathComponent("notification-icon.png")
+      if FileManager.default.fileExists(atPath: sharedIcon.path) { return sharedIcon }
+    }
+    return nil
   }
 }
