@@ -7,7 +7,8 @@ Cross-platform app blocking module for Expo. Block other apps and redirect users
 
 ## Demo
 
-https://github.com/eylonshm/expo-app-blocker/raw/master/docs/demo.mp4
+https://github.com/user-attachments/assets/37f34797-6b92-40d5-911a-90c40e9ffaaa
+
 
 > **iOS requires Apple Developer Portal setup before building.** See [Prerequisites](#prerequisites) for details.
 
