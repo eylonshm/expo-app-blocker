@@ -156,7 +156,9 @@ function withAppBlockerIOS(config, pluginConfig) {
       const primaryColor = hexToRgb(shield.primaryButtonColor || "#fb6107");
       const titleColor = hexToRgb(shield.titleColor || "#111111");
       const subtitleColor = hexToRgb(shield.subtitleColor || "#737373");
-      const bgColor = shield.backgroundColor ? hexToRgb(shield.backgroundColor) : null;
+      // background: "blur" (default) or a hex color string
+      const bgRaw = shield.background ?? shield.backgroundColor ?? null;
+      const bgColor = (bgRaw && bgRaw !== "blur") ? hexToRgb(bgRaw) : null;
 
       // All placeholder replacements
       const replacements = {

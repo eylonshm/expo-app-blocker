@@ -72,7 +72,8 @@ Add the plugin to your `app.json`:
             "subtitle": "{appName} is blocked.",
             "primaryButtonLabel": "Earn Free Time",
             "secondaryButtonLabel": "Not now",
-            "primaryButtonColor": "#7cb518",
+            "primaryButtonColor": "#fb6107",
+            "background": "#f6f6f6",
             "icon": "./assets/shield-icon.png"
           }
         }
@@ -94,7 +95,7 @@ Add the plugin to your `app.json`:
 | `ios.shield.primaryButtonColor` | `string` | `"#fb6107"` | Primary button background color (hex) |
 | `ios.shield.titleColor` | `string` | `"#111111"` | Title text color (hex) |
 | `ios.shield.subtitleColor` | `string` | `"#737373"` | Subtitle text color (hex) |
-| `ios.shield.backgroundColor` | `string\|null` | `null` (blur) | Solid background color (hex). Set to `"#f6f6f6"` for light. `null` uses system blur. |
+| `ios.shield.background` | `"blur"\|string` | `"blur"` | `"blur"` for frosted glass effect, or a hex color (e.g. `"#f6f6f6"`) for a solid background |
 | `ios.shield.icon` | `string` | SF Symbol | Path to custom shield icon PNG (relative to project root, e.g. `"./assets/shield-icon.png"`) |
 | `android.notificationTitle` | `string` | `"App Blocked"` | Notification title |
 | `android.notificationText` | `string` | `"{appName} is blocked."` | Notification text |

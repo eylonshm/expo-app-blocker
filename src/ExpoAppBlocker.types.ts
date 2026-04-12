@@ -80,8 +80,12 @@ export interface ShieldConfig {
   titleColor?: string;
   /** Subtitle text color (hex). Default: "#737373" */
   subtitleColor?: string;
-  /** Background color (hex). Default: null (uses system blur). Set to a color like "#f6f6f6" for a solid light background. */
-  backgroundColor?: string | null;
+  /**
+   * Background style. Two modes:
+   * - "blur" (default): Frosted glass effect over the blocked app (iOS systemThickMaterial)
+   * - A hex color string (e.g. "#f6f6f6"): Solid color background
+   */
+  background?: "blur" | string;
   /** Path to shield icon image (PNG). Optional. */
   icon?: string;
 }
