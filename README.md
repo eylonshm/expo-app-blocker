@@ -7,6 +7,29 @@ Cross-platform app blocking module for Expo. Block other apps and redirect users
 
 > **iOS requires Apple Developer Portal setup before building.** See [Prerequisites](#prerequisites) for details.
 
+## Table of Contents
+
+- [Features](#features)
+- [Quick Start](#quick-start)
+- [Prerequisites](#prerequisites)
+- [Plugin Options](#plugin-options)
+  - [Blur Styles](#blur-styles)
+  - [EAS Build](#eas-build)
+- [API Reference](#api-reference)
+  - [Permissions](#permissions)
+  - [Android: Permission Settings](#android-permission-settings)
+  - [Android: App Blocking](#android-app-blocking)
+  - [Android: Monitoring](#android-monitoring)
+  - [iOS: App Selection (Inline Picker)](#inline-picker-recommended)
+  - [iOS: App Selection (Modal Picker)](#modal-picker)
+  - [iOS: Block Configuration](#ios-block-configuration)
+  - [iOS: Temporary Unlock](#ios-temporary-unlock)
+  - [iOS: Shield Button Events](#ios-shield-button-events)
+  - [iOS: Blocked Apps List](#ios-blocked-apps-list)
+- [Full Example: iOS App Blocker](#full-example-ios-app-blocker)
+- [Platform Notes](#platform-notes)
+- [How It Works](#how-it-works)
+
 ## Features
 
 - Block specific apps from being used
