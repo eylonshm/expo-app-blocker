@@ -8,10 +8,9 @@ Cross-platform app blocking module for Expo. Block other apps and redirect users
 ## Features
 
 - Block specific apps from being used
-- Detect when a blocked app is opened (Android: polling, iOS: system shield)
-- Customizable iOS shield overlay (icon, title, subtitle, button text, colors)
 - Inline app picker - embed the iOS system app picker directly in your UI (like Duolingo)
 - Modal app picker - present the system picker as a sheet
+- Customizable iOS shield overlay (icon, title, subtitle, button text, colors, blur style)
 - Native view for rendering blocked app names/icons (Apple's opaque tokens)
 - Temporary unlock with timer
 - Auto-relock when unlock period expires (iOS DeviceActivityMonitor extension)
@@ -19,6 +18,104 @@ Cross-platform app blocking module for Expo. Block other apps and redirect users
 - Persist blocked apps across app restarts
 - Automatic iOS extension target creation via `@bacons/apple-targets`
 - Full Expo Config Plugin - no manual native setup required
+
+## Quick Start
+
+### 1. Install
+
+```bash
+npx expo install expo-app-blocker
+```
+
+### 2. Configure `app.json`
+
+```json
+{
+  "expo": {
+    "scheme": "myapp",
+    "ios": {
+      "bundleIdentifier": "com.yourapp.id",
+      "appleTeamId": "YOUR_TEAM_ID"
+    },
+    "plugins": [
+      ["expo-app-blocker", {
+        "ios": {
+          "appGroup": "group.com.yourapp.blocker",
+          "shield": {
+            "title": "Hold on!",
+            "subtitle": "{appName} is blocked.",
+            "primaryButtonLabel": "Earn Free Time",
+            "primaryButtonColor": "#fb6107",
+            "backgroundColor": "#f6f6f6",
+            "backgroundBlurStyle": "systemThickMaterialLight"
+          }
+        }
+      }]
+    ]
+  }
+}
+```
+
+### 3. Use in your app
+
+```tsx
+import {
+  requestPermissions,
+  setBlockConfiguration,
+  clearAllBlocks,
+  temporaryUnlock,
+  FamilyActivityPickerView,
+  type FamilyActivityPickerSelectionEvent,
+} from 'expo-app-blocker';
+
+function AppBlockerScreen() {
+  const [selectionData, setSelectionData] = useState('');
+
+  // 1. Request Screen Time permission (call once)
+  const handleAuth = async () => {
+    const { allGranted } = await requestPermissions();
+    if (!allGranted) console.log('User denied Screen Time access');
+  };
+
+  // 2. Handle selection changes from the inline picker
+  const handleSelectionChange = async (event: FamilyActivityPickerSelectionEvent) => {
+    setSelectionData(event.selectionData);
+
+    if (event.items.length > 0) {
+      // Apply blocks — shields appear immediately on selected apps
+      await setBlockConfiguration({ blockedItems: event.items, isActive: true });
+    } else {
+      clearAllBlocks();
+    }
+  };
+
+  return (
+    <View>
+      {/* Inline app picker — renders the iOS system picker in your UI */}
+      <FamilyActivityPickerView
+        initialSelection={selectionData}
+        onSelectionChange={handleSelectionChange}
+        theme="light"
+        style={{ height: 500 }}
+      />
+
+      {/* Unlock apps temporarily (e.g. after completing a quiz) */}
+      <Button
+        title="Unlock for 15 minutes"
+        onPress={() => temporaryUnlock(15)}
+      />
+    </View>
+  );
+}
+```
+
+### 4. Build and run
+
+```bash
+npx expo prebuild --clean
+npx expo run:ios --device    # physical device required for Screen Time APIs
+npx expo run:android         # Android works on emulator
+```
 
 ## Prerequisites
 
@@ -42,51 +139,7 @@ Cross-platform app blocking module for Expo. Block other apps and redirect users
 
 No special setup required beyond what the config plugin handles automatically.
 
-## Installation
-
-```bash
-npx expo install expo-app-blocker
-```
-
-> `@bacons/apple-targets` is included as a dependency for automatic iOS extension target creation.
-
-## Configuration
-
-Add the plugin to your `app.json`:
-
-```json
-{
-  "expo": {
-    "scheme": "myapp",
-    "ios": {
-      "bundleIdentifier": "com.yourapp.id",
-      "appleTeamId": "YOUR_TEAM_ID"
-    },
-    "android": {
-      "package": "com.yourapp.id"
-    },
-    "plugins": [
-      ["expo-app-blocker", {
-        "ios": {
-          "appGroup": "group.com.yourapp.blocker",
-          "shield": {
-            "title": "Hold on!",
-            "subtitle": "{appName} is blocked.",
-            "primaryButtonLabel": "Earn Free Time",
-            "secondaryButtonLabel": "Not now",
-            "primaryButtonColor": "#fb6107",
-            "backgroundColor": "#f6f6f6",
-            "backgroundBlurStyle": "systemThickMaterialLight",
-            "icon": "./assets/shield-icon.png"
-          }
-        }
-      }]
-    ]
-  }
-}
-```
-
-### Plugin Options
+## Plugin Options
 
 | Option | Type | Default | Description |
 |---|---|---|---|
@@ -99,14 +152,25 @@ Add the plugin to your `app.json`:
 | `ios.shield.titleColor` | `string` | `"#111111"` | Title text color (hex) |
 | `ios.shield.subtitleColor` | `string` | `"#737373"` | Subtitle text color (hex) |
 | `ios.shield.backgroundColor` | `string\|null` | `null` | Solid background color (hex). e.g. `"#f6f6f6"` for light, `"#1a1a2e"` for dark |
-| `ios.shield.backgroundBlurStyle` | `string\|null` | `"systemThickMaterial"` | Blur style. Auto-defaults when no backgroundColor. See below for all options |
-| `ios.shield.icon` | `string` | SF Symbol | Path to custom shield icon PNG (relative to project root, e.g. `"./assets/shield-icon.png"`) |
+| `ios.shield.backgroundBlurStyle` | `string\|null` | `"systemThickMaterial"` | Blur style. See [Blur Styles](#blur-styles) for all options |
+| `ios.shield.icon` | `string` | SF Symbol | Path to custom shield icon PNG (e.g. `"./assets/shield-icon.png"`) |
 | `android.notificationTitle` | `string` | `"App Blocked"` | Notification title |
 | `android.notificationText` | `string` | `"{appName} is blocked."` | Notification text |
 
+### Blur Styles
+
+| Category | Values |
+|---|---|
+| Adaptive (auto light/dark) | `systemUltraThinMaterial`, `systemThinMaterial`, `systemMaterial`, `systemThickMaterial`, `systemChromeMaterial` |
+| Light only | `systemUltraThinMaterialLight`, `systemThinMaterialLight`, `systemMaterialLight`, `systemThickMaterialLight`, `systemChromeMaterialLight` |
+| Dark only | `systemUltraThinMaterialDark`, `systemThinMaterialDark`, `systemMaterialDark`, `systemThickMaterialDark`, `systemChromeMaterialDark` |
+| Legacy | `regular`, `prominent`, `light`, `dark`, `extraLight` |
+
+Both `backgroundColor` and `backgroundBlurStyle` can be combined — the blur renders behind the color.
+
 ### EAS Build
 
-For EAS Build, declare extensions for credential management:
+For EAS Build, declare extensions in `app.json` for credential management:
 
 ```json
 {
@@ -149,19 +213,6 @@ For EAS Build, declare extensions for credential management:
 }
 ```
 
-## Build
-
-```bash
-# Generate native projects
-npx expo prebuild --clean
-
-# Run on Android
-npx expo run:android
-
-# Run on iOS (physical device required for Screen Time APIs)
-npx expo run:ios --device
-```
-
 ## API Reference
 
 ### Permissions
@@ -169,11 +220,11 @@ npx expo run:ios --device
 ```typescript
 import { getPermissionStatus, requestPermissions } from 'expo-app-blocker';
 
-// Check current permission status
+// Check current status
 const status = await getPermissionStatus();
-// Returns: { allGranted: boolean, details: AndroidPermissions | IOSPermissions }
+// { allGranted: boolean, details: AndroidPermissions | IOSPermissions }
 
-// Request permissions (iOS: triggers Screen Time authorization)
+// Request permissions (iOS: Screen Time authorization, Android: no-op)
 const result = await requestPermissions();
 ```
 
@@ -182,11 +233,8 @@ const result = await requestPermissions();
 ```typescript
 import { openOverlaySettings, openUsageStatsSettings } from 'expo-app-blocker';
 
-// Open system settings for overlay permission
-openOverlaySettings();
-
-// Open system settings for usage access
-openUsageStatsSettings();
+openOverlaySettings();     // "Display over other apps"
+openUsageStatsSettings();  // "Usage access"
 ```
 
 ### Android: App Blocking
@@ -194,45 +242,37 @@ openUsageStatsSettings();
 ```typescript
 import { setBlockedApps, getBlockedApps, getInstalledApps } from 'expo-app-blocker';
 
-// Get list of installed apps
 const apps = await getInstalledApps();
-// Returns: [{ packageName: string, name: string }]
+// [{ packageName: 'com.instagram.android', name: 'Instagram' }, ...]
 
-// Set which apps to block (by package name)
 setBlockedApps(['com.instagram.android', 'com.google.android.youtube']);
-
-// Get currently blocked apps
-const blocked = getBlockedApps();
-// Returns: ['com.instagram.android', 'com.google.android.youtube']
+const blocked = getBlockedApps(); // ['com.instagram.android', ...]
 ```
 
-### Android: Monitoring Control
+### Android: Monitoring
 
 ```typescript
 import { startMonitoring, stopMonitoring } from 'expo-app-blocker';
 
-// Start the foreground service (auto-started on module init)
-startMonitoring();
-
-// Stop monitoring
-stopMonitoring();
+startMonitoring();   // Start foreground service (auto-started on init)
+stopMonitoring();    // Stop monitoring
 ```
 
 ### iOS: App Selection
 
-Two approaches for letting users pick which apps to block:
+Two ways to let users pick which apps to block:
 
-#### Option A: Inline Picker (Recommended)
+#### Inline Picker (Recommended)
 
-Embeds Apple's `FamilyActivityPicker` directly in your UI — the same approach Duolingo and other apps use. The picker renders as a native view with a search bar and app/category list.
+Embeds Apple's `FamilyActivityPicker` directly in your UI — the same approach Duolingo and other Screen Time apps use. The picker renders as a searchable native view with app and category lists.
 
 ```tsx
-import { FamilyActivityPickerView } from 'expo-app-blocker';
+import { FamilyActivityPickerView, setBlockConfiguration } from 'expo-app-blocker';
 
 <FamilyActivityPickerView
   initialSelection={selectionData}
-  onSelectionChange={(event) => {
-    // Apply blocks in real-time as user toggles apps
+  onSelectionChange={async (event) => {
+    setSelectionData(event.selectionData); // save for next mount
     await setBlockConfiguration({ blockedItems: event.items, isActive: true });
   }}
   theme="light"
@@ -240,35 +280,37 @@ import { FamilyActivityPickerView } from 'expo-app-blocker';
 />
 ```
 
-##### `FamilyActivityPickerView` Props
+**Props:**
 
 | Prop | Type | Default | Description |
 |---|---|---|---|
-| `initialSelection` | `string` | `undefined` | Base64-encoded `FamilyActivitySelection` from a previous `selectionData`. Restores the user's prior selection when the picker mounts |
-| `onSelectionChange` | `(event) => void` | `undefined` | Called each time the user toggles an app or category. See event shape below |
-| `theme` | `"light" \| "dark" \| "system"` | `"system"` | Forces the picker's color scheme. Use `"light"` or `"dark"` to match your app's theme regardless of device settings |
-| `style` | `ViewStyle` | `{ minHeight: 400 }` | Standard React Native style. Set an explicit `height` for best results |
+| `initialSelection` | `string` | — | Base64-encoded selection from a previous `selectionData`. Restores prior selection on mount |
+| `onSelectionChange` | `(event) => void` | — | Fires each time the user toggles an app or category |
+| `theme` | `"light" \| "dark" \| "system"` | `"system"` | Forces the picker's color scheme |
+| `style` | `ViewStyle` | `{ minHeight: 400 }` | Set an explicit `height` for best results |
 
-##### `onSelectionChange` Event
+**`onSelectionChange` event:**
 
-```typescript
-{
-  items: IOSBlockedItem[];    // Selected apps and categories (pass to setBlockConfiguration)
-  totalApps: number;          // Number of individual apps selected
-  totalCategories: number;    // Number of categories selected
-  selectionData: string;      // Base64 string — save this and pass back as initialSelection
-}
-```
+| Field | Type | Description |
+|---|---|---|
+| `items` | `IOSBlockedItem[]` | Selected apps/categories — pass directly to `setBlockConfiguration()` |
+| `totalApps` | `number` | Number of individual apps selected |
+| `totalCategories` | `number` | Number of categories selected |
+| `selectionData` | `string` | Base64 string — save and pass back as `initialSelection` |
 
-#### Option B: Modal Picker
+#### Modal Picker
 
-Opens the system picker as a modal sheet. Returns a promise that resolves when the user taps "Done" or rejects on cancel.
+Opens the system picker as a modal sheet. Returns items on "Done", rejects on cancel.
 
 ```typescript
 import { presentFamilyActivityPicker } from 'expo-app-blocker';
 
-const items = await presentFamilyActivityPicker();
-// Returns: IOSBlockedItem[] - opaque tokens for selected apps/categories
+try {
+  const items = await presentFamilyActivityPicker();
+  await setBlockConfiguration({ blockedItems: items, isActive: true });
+} catch (e) {
+  // User cancelled
+}
 ```
 
 ### iOS: Block Configuration
@@ -278,7 +320,7 @@ import { setBlockConfiguration, getBlockConfiguration, clearAllBlocks } from 'ex
 
 // Apply blocks (shields appear on selected apps)
 await setBlockConfiguration({
-  blockedItems: items, // from presentFamilyActivityPicker()
+  blockedItems: items, // from picker
   isActive: true,
 });
 
@@ -301,39 +343,36 @@ import {
 
 // Unlock for N minutes (removes shields temporarily)
 const result = await temporaryUnlock(15);
-// Returns: { unlocked: boolean, expiresAt: number }
+// { unlocked: boolean, expiresAt: number }
 
-// Check if currently unlocked
-const unlocked = isTemporarilyUnlocked();
-
-// Get remaining seconds
-const seconds = getRemainingUnlockTime();
-
-// Re-lock immediately
-await relockApps();
+const unlocked = isTemporarilyUnlocked(); // boolean
+const seconds = getRemainingUnlockTime(); // seconds remaining
+await relockApps();                        // re-lock immediately
 ```
 
 ### iOS: Shield Button Events
 
+When a user taps the primary button on the shield overlay, your app receives an event:
+
 ```typescript
 import { addPendingUnlockListener, checkAndClearPendingUnlock } from 'expo-app-blocker';
 
-// Check if user tapped shield button while app was closed
+// Check if button was tapped while app was closed
 const hasPending = checkAndClearPendingUnlock();
 
-// Listen for real-time shield button taps
+// Listen for real-time taps
 const subscription = addPendingUnlockListener(() => {
-  // User tapped "Earn Free Time" on the shield
   // Navigate to your unlock/quiz screen
+  router.push('/unlock');
 });
 
 // Clean up
 subscription?.remove();
 ```
 
-### iOS: Native Blocked Apps List
+### iOS: Blocked Apps List
 
-Renders blocked app tokens with their real names and icons using Apple's native `Label` view. Since iOS app tokens are opaque, this is the only way to display app names/icons.
+Renders blocked app tokens with their real names and icons using Apple's native `Label` view. Since iOS tokens are opaque, this is the only way to display app names/icons outside the picker.
 
 ```tsx
 import { BlockedAppsNativeList } from 'expo-app-blocker';
@@ -345,21 +384,150 @@ import { BlockedAppsNativeList } from 'expo-app-blocker';
 />
 ```
 
-##### `BlockedAppsNativeList` Props
+**Props:**
 
 | Prop | Type | Default | Description |
 |---|---|---|---|
-| `items` | `IOSBlockedItem[]` | Required | Array of blocked items (from `presentFamilyActivityPicker()` or `onSelectionChange`) |
-| `selectionData` | `string` | `undefined` | Base64-encoded `FamilyActivitySelection`. Preferred over `items` for accurate rendering |
-| `style` | `ViewStyle` | `{ minHeight: 50 }` | Standard React Native style |
+| `items` | `IOSBlockedItem[]` | Required | Blocked items from picker |
+| `selectionData` | `string` | — | Base64 selection for accurate rendering |
+| `style` | `ViewStyle` | `{ minHeight: 50 }` | Standard style |
+
+## Full Example: iOS App Blocker
+
+A complete example showing permissions, inline picker, blocking, and temporary unlock:
+
+```tsx
+import { useState, useEffect, useCallback } from 'react';
+import { View, Text, TouchableOpacity, Platform, StyleSheet } from 'react-native';
+import {
+  getPermissionStatus,
+  requestPermissions,
+  setBlockConfiguration,
+  getBlockConfiguration,
+  clearAllBlocks,
+  temporaryUnlock,
+  isTemporarilyUnlocked,
+  getRemainingUnlockTime,
+  relockApps,
+  addPendingUnlockListener,
+  checkAndClearPendingUnlock,
+  FamilyActivityPickerView,
+  type PermissionStatus,
+  type IOSBlockedItem,
+  type FamilyActivityPickerSelectionEvent,
+} from 'expo-app-blocker';
+
+export default function BlockerScreen() {
+  const [permissions, setPermissions] = useState<PermissionStatus | null>(null);
+  const [blockedApps, setBlockedApps] = useState<IOSBlockedItem[]>([]);
+  const [selectionData, setSelectionData] = useState('');
+  const [unlocked, setUnlocked] = useState(false);
+
+  // Load permissions and existing blocks on mount
+  useEffect(() => {
+    getPermissionStatus().then(setPermissions);
+    const config = getBlockConfiguration();
+    if (config?.blockedItems?.length) {
+      setBlockedApps(config.blockedItems);
+    }
+  }, []);
+
+  // Listen for shield button taps
+  useEffect(() => {
+    if (checkAndClearPendingUnlock()) {
+      // User tapped shield button while app was closed
+    }
+    const sub = addPendingUnlockListener(() => {
+      // User tapped shield button — show your unlock UI
+    });
+    return () => sub?.remove();
+  }, []);
+
+  // Handle inline picker selection
+  const handleSelectionChange = async (event: FamilyActivityPickerSelectionEvent) => {
+    const items = event.items.filter(i => i.type !== 'summary');
+    setBlockedApps(items);
+    setSelectionData(event.selectionData);
+
+    if (items.length > 0) {
+      await setBlockConfiguration({ blockedItems: items, isActive: true });
+    } else {
+      clearAllBlocks();
+    }
+  };
+
+  if (Platform.OS !== 'ios') return null;
+
+  return (
+    <View style={styles.container}>
+      {/* Permission request */}
+      {!permissions?.allGranted && (
+        <TouchableOpacity
+          style={styles.button}
+          onPress={async () => {
+            const result = await requestPermissions();
+            setPermissions(result);
+          }}
+        >
+          <Text style={styles.buttonText}>Enable Screen Time</Text>
+        </TouchableOpacity>
+      )}
+
+      {/* Inline app picker */}
+      {permissions?.allGranted && (
+        <View style={styles.pickerContainer}>
+          <FamilyActivityPickerView
+            initialSelection={selectionData}
+            onSelectionChange={handleSelectionChange}
+            theme="light"
+            style={{ height: 500 }}
+          />
+        </View>
+      )}
+
+      {/* Actions */}
+      {blockedApps.length > 0 && (
+        <View style={styles.actions}>
+          <Text>{blockedApps.length} apps blocked</Text>
+
+          <TouchableOpacity
+            style={styles.button}
+            onPress={async () => {
+              await temporaryUnlock(15);
+              setUnlocked(true);
+            }}
+          >
+            <Text style={styles.buttonText}>Unlock 15 min</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.button}
+            onPress={() => { clearAllBlocks(); setBlockedApps([]); }}
+          >
+            <Text style={styles.buttonText}>Clear All</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, padding: 16 },
+  pickerContainer: { borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: '#e8e8e8' },
+  actions: { marginTop: 16, gap: 12 },
+  button: { backgroundColor: '#fb6107', padding: 16, borderRadius: 12, alignItems: 'center' },
+  buttonText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+});
+```
 
 ## Platform Notes
 
 ### iOS Limitations
 
 - **Physical device required** - Screen Time APIs don't work in the simulator
-- **App tokens are opaque** - You cannot extract app names/bundle IDs from tokens. Use `BlockedAppsNativeList` to render them with Apple's native Label
-- **FamilyActivityPicker is required** - No API to enumerate installed apps on iOS. Use `<FamilyActivityPickerView>` (inline) or `presentFamilyActivityPicker()` (modal)
+- **App tokens are opaque** - You cannot extract app names/bundle IDs from tokens. Use `BlockedAppsNativeList` or `FamilyActivityPickerView` to display them
+- **FamilyActivityPicker is required** - No API to enumerate installed apps on iOS
 - **Shield customization is limited** - Only icon, title, subtitle, button labels, and colors can be changed. No custom views, fonts, or animations
 - **Cannot open apps from shield** - Use notifications as a workaround to redirect users to your app
 
@@ -396,11 +564,11 @@ import { BlockedAppsNativeList } from 'expo-app-blocker';
 ### iOS Flow
 
 1. User authorizes Screen Time via `requestPermissions()`
-2. User selects apps to block — either inline via `<FamilyActivityPickerView>` or modal via `presentFamilyActivityPicker()`
+2. User selects apps to block — inline via `<FamilyActivityPickerView>` or modal via `presentFamilyActivityPicker()`
 3. `setBlockConfiguration()` applies shields via `ManagedSettingsStore`
-4. When a blocked app is opened, iOS shows the shield overlay (customized via `ShieldConfigurationExtension`)
-5. When the user taps the shield button, `ShieldActionExtension` sends a notification via Darwin notification center
-6. Your app receives the event and can navigate to an unlock flow
+4. When a blocked app is opened, iOS shows the shield overlay (customized via config plugin)
+5. When the user taps the shield button, `ShieldActionExtension` sends a notification
+6. Your app receives the event via `addPendingUnlockListener()` and can navigate to an unlock flow
 7. `temporaryUnlock()` removes shields for a duration
 8. `DeviceActivityMonitor` extension re-applies shields when the unlock period expires
 
