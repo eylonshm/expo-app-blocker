@@ -1,10 +1,16 @@
+// Resolve from the app's node_modules, not the package's
+const resolve = (mod) => {
+  try { return require(mod); } catch {}
+  try { return require(require.resolve(mod, { paths: [process.cwd()] })); } catch {}
+  throw new Error(`Cannot find module '${mod}'. Make sure 'expo' is installed.`);
+};
 const {
   withAndroidManifest,
   withEntitlementsPlist,
   withInfoPlist,
   withDangerousMod,
   createRunOncePlugin,
-} = require("expo/config-plugins");
+} = resolve("expo/config-plugins");
 const fs = require("fs");
 const path = require("path");
 
@@ -99,23 +105,10 @@ function withAppBlockerIOS(config, pluginConfig) {
       const platformRoot = config.modRequest.platformProjectRoot;
       const projectName = config.modRequest.projectName;
 
-      // Inject pod
+      // Patch Podfile deployment target (pod itself is auto-linked via expo-module.config.json)
       const podfilePath = path.join(platformRoot, "Podfile");
       if (fs.existsSync(podfilePath)) {
         let podfile = fs.readFileSync(podfilePath, "utf-8");
-
-        // Find the expo-app-blocker package path
-        let podspecDir;
-        try {
-          podspecDir = path.dirname(require.resolve("expo-app-blocker/ios/ExpoAppBlocker.podspec"));
-        } catch {
-          podspecDir = path.join(path.dirname(require.resolve("expo-app-blocker/package.json")), "ios");
-        }
-
-        const podLine = `  pod 'ExpoAppBlocker', :path => '${podspecDir}'`;
-        if (!podfile.includes("pod 'ExpoAppBlocker'")) {
-          podfile = podfile.replace("use_expo_modules!", `use_expo_modules!\n${podLine}`);
-        }
 
         podfile = podfile.replace(
           /platform :ios, podfile_properties\['ios\.deploymentTarget'\] \|\| '[\d.]+'/,
