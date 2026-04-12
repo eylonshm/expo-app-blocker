@@ -240,18 +240,22 @@ if (Platform.OS === "ios") {
 export function FamilyActivityPickerView({
   initialSelection,
   onSelectionChange,
+  theme,
   style,
 }: {
   /** Base64-encoded FamilyActivitySelection (from a previous picker result's selectionData) */
   initialSelection?: string;
   /** Called when the user changes selection in the picker */
   onSelectionChange?: (event: FamilyActivityPickerSelectionEvent) => void;
+  /** Color scheme: "light", "dark", or "system" (default). Forces the picker appearance. */
+  theme?: "light" | "dark" | "system";
   style?: any;
 }) {
   if (!NativePickerView || Platform.OS !== "ios") return null;
 
   return React.createElement(NativePickerView, {
     initialSelection: initialSelection || "",
+    theme: theme || "system",
     onSelectionChange: onSelectionChange
       ? (e: any) => onSelectionChange(e.nativeEvent)
       : undefined,

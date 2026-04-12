@@ -17,6 +17,10 @@ public class ExpoAppBlockerPickerModule: Module {
         else { return }
         view.setInitialSelection(selection)
       }
+
+      Prop("theme") { (view: FamilyActivityPickerNativeView, theme: String) in
+        view.setTheme(theme)
+      }
     }
   }
 }
@@ -25,6 +29,7 @@ public class ExpoAppBlockerPickerModule: Module {
 
 class FamilyActivityPickerViewModel: ObservableObject {
   @Published var selection = FamilyActivitySelection()
+  @Published var colorScheme: ColorScheme? = nil
   var didSetInitial = false
 }
 
@@ -57,6 +62,17 @@ class FamilyActivityPickerNativeView: ExpoView {
     guard !viewModel.didSetInitial else { return }
     viewModel.didSetInitial = true
     viewModel.selection = selection
+  }
+
+  func setTheme(_ theme: String) {
+    switch theme.lowercased() {
+    case "light":
+      viewModel.colorScheme = .light
+    case "dark":
+      viewModel.colorScheme = .dark
+    default:
+      viewModel.colorScheme = nil // system default
+    }
   }
 
   private func handleSelectionChange(_ selection: FamilyActivitySelection) {
@@ -109,9 +125,15 @@ struct InlinePickerContentView: View {
   var onSelectionChange: (FamilyActivitySelection) -> Void
 
   var body: some View {
-    FamilyActivityPicker(selection: $viewModel.selection)
+    let picker = FamilyActivityPicker(selection: $viewModel.selection)
       .onChange(of: viewModel.selection) { newSelection in
         onSelectionChange(newSelection)
       }
+
+    if let scheme = viewModel.colorScheme {
+      picker.environment(\.colorScheme, scheme)
+    } else {
+      picker
+    }
   }
 }
