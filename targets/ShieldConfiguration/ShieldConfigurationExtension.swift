@@ -59,7 +59,7 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
     let hasSecondary = !shieldSecondaryButtonLabel.isEmpty && shieldSecondaryButtonLabel != "none"
 
     return ShieldConfiguration(
-      backgroundBlurStyle: shieldBackgroundColor == nil ? .systemThickMaterial : nil,
+      backgroundBlurStyle: shieldBlurStyle,
       backgroundColor: shieldBackgroundColor,
       icon: mascotIcon,
       title: ShieldConfiguration.Label(text: shieldTitle, color: shieldTitleColor),
