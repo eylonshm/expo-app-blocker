@@ -141,6 +141,36 @@ function withAppBlockerIOS(config, pluginConfig) {
         }
       }
 
+      // Copy fresh target templates from node_modules before replacing placeholders
+      const targetsDir = path.join(path.dirname(platformRoot), "targets");
+      const packageTargetsDir = path.resolve(__dirname, "..", "..", "targets");
+      if (fs.existsSync(packageTargetsDir)) {
+        function copyDirSync(src, dest) {
+          if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
+          for (const entry of fs.readdirSync(src)) {
+            const srcPath = path.join(src, entry);
+            const destPath = path.join(dest, entry);
+            if (fs.statSync(srcPath).isDirectory()) {
+              copyDirSync(srcPath, destPath);
+            } else {
+              fs.copyFileSync(srcPath, destPath);
+            }
+          }
+        }
+        // Only copy Swift files and config (preserve user's assets, generated entitlements, Info.plist)
+        for (const dir of fs.readdirSync(packageTargetsDir)) {
+          const srcDir = path.join(packageTargetsDir, dir);
+          const destDir = path.join(targetsDir, dir);
+          if (!fs.statSync(srcDir).isDirectory()) continue;
+          if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
+          for (const file of fs.readdirSync(srcDir)) {
+            if (file.endsWith(".swift") || file === "expo-target.config.js") {
+              fs.copyFileSync(path.join(srcDir, file), path.join(destDir, file));
+            }
+          }
+        }
+      }
+
       // Helper: hex to RGB floats
       function hexToRgb(hex) {
         const h = hex.replace("#", "");
@@ -182,7 +212,6 @@ function withAppBlockerIOS(config, pluginConfig) {
       };
 
       // Inject all placeholders into extension Swift files
-      const targetsDir = path.join(path.dirname(platformRoot), "targets");
       if (fs.existsSync(targetsDir)) {
         const dirs = fs.readdirSync(targetsDir);
         for (const dir of dirs) {
