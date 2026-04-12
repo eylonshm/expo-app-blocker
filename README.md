@@ -41,10 +41,10 @@ No special setup required beyond what the config plugin handles automatically.
 ## Installation
 
 ```bash
-npx expo install expo-app-blocker @bacons/apple-targets
+npx expo install expo-app-blocker
 ```
 
-> `@bacons/apple-targets` is required for automatic iOS extension target creation.
+> `@bacons/apple-targets` is included as a dependency for automatic iOS extension target creation.
 
 ## Configuration
 
@@ -73,8 +73,7 @@ Add the plugin to your `app.json`:
             "primaryButtonColor": "#7cb518"
           }
         }
-      }],
-      "@bacons/apple-targets"
+      }]
     ]
   }
 }
