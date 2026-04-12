@@ -7,62 +7,36 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
+    # Skip version bump commits to prevent loops
+    if: "!startsWith(github.event.head_commit.message, 'v')"
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           registry-url: https://registry.npmjs.org
 
-      - name: Configure git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
       - name: Determine version bump
         id: version
         run: |
-          # Check commit message for version keywords
-          COMMIT_MSG=$(git log -1 --pretty=%B)
-          if echo "$COMMIT_MSG" | grep -qi "\[major\]"; then
+          COMMIT_MSG="${{ github.event.head_commit.message }}"
+          if echo "$COMMIT_MSG" | grep -qw "\[major\]"; then
             echo "bump=major" >> $GITHUB_OUTPUT
-          elif echo "$COMMIT_MSG" | grep -qi "\[minor\]"; then
+          elif echo "$COMMIT_MSG" | grep -qw "\[minor\]"; then
             echo "bump=minor" >> $GITHUB_OUTPUT
           else
             echo "bump=patch" >> $GITHUB_OUTPUT
           fi
 
-      - name: Skip if version commit
-        id: check
-        run: |
-          COMMIT_MSG=$(git log -1 --pretty=%B)
-          if echo "$COMMIT_MSG" | grep -q "^v[0-9]"; then
-            echo "skip=true" >> $GITHUB_OUTPUT
-          else
-            echo "skip=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Bump version
-        if: steps.check.outputs.skip == 'false'
-        run: |
-          NEW_VERSION=$(npm version ${{ steps.version.outputs.bump }} -m "v%s")
-          echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
-
-      - name: Push version tag
-        if: steps.check.outputs.skip == 'false'
-        run: |
-          git push
-          git push --tags
+      - name: Bump version (no git commit)
+        run: npm version ${{ steps.version.outputs.bump }} --no-git-tag-version
 
       - name: Publish to npm
-        if: steps.check.outputs.skip == 'false'
         run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Output version
+        run: echo "Published $(node -p 'require("./package.json").version')"
