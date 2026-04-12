@@ -87,13 +87,18 @@ Add the plugin to your `app.json`:
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `ios.appGroup` | `string` | Required | App Group identifier for shared data |
-| `ios.shield.title` | `string` | `"Hold on!"` | Shield overlay title |
-| `ios.shield.subtitle` | `string` | `"{appName} is blocked."` | Shield subtitle. `{appName}` is replaced with the blocked app name |
+| `ios.shield.title` | `string` | `"Hold on!"` | Shield title. `{appName}` replaced with blocked app name |
+| `ios.shield.titleColor` | `string` | `"#111111"` | Title text color (hex) |
+| `ios.shield.subtitle` | `string` | `"{appName} is blocked."` | Shield subtitle. `{appName}` replaced with blocked app name |
+| `ios.shield.subtitleColor` | `string` | `"#8c8c8c"` | Subtitle text color (hex) |
 | `ios.shield.primaryButtonLabel` | `string` | `"Earn Free Time"` | Primary button text |
+| `ios.shield.primaryButtonLabelColor` | `string` | `"#ffffff"` | Primary button text color (hex) |
+| `ios.shield.primaryButtonBackgroundColor` | `string` | `"#7cb518"` | Primary button background color (hex) |
 | `ios.shield.secondaryButtonLabel` | `string\|null` | `"Not now"` | Secondary button text. Set to `null` to hide |
-| `ios.shield.primaryButtonColor` | `string` | `"#7cb518"` | Primary button background color (hex) |
-| `ios.shield.backgroundBlurStyle` | `string` | `"systemThickMaterial"` | iOS blur style |
-| `ios.shield.icon` | `string` | SF Symbol | Path to custom shield icon PNG (relative to project root, e.g. `"./assets/shield-icon.png"`) |
+| `ios.shield.secondaryButtonLabelColor` | `string` | `"#8c8c8c"` | Secondary button text color (hex) |
+| `ios.shield.backgroundColor` | `string\|null` | `null` | Background tint color over blur (hex, supports alpha e.g. `"#FF000033"`) |
+| `ios.shield.backgroundBlurStyle` | `string` | `"systemThickMaterial"` | Blur style. Options: `extraLight`, `light`, `dark`, `regular`, `prominent`, `systemUltraThinMaterial`, `systemThinMaterial`, `systemMaterial`, `systemThickMaterial`, `systemChromeMaterial`, and light/dark forced variants |
+| `ios.shield.icon` | `string` | SF Symbol | Path to custom shield icon PNG (relative to project root) |
 | `android.notificationTitle` | `string` | `"App Blocked"` | Notification title |
 | `android.notificationText` | `string` | `"{appName} is blocked."` | Notification text |
 

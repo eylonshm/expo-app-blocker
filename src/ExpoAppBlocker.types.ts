@@ -66,21 +66,39 @@ export interface RelockResult {
 // ──────────────────────────────────────────────────────────────────────────────
 
 export interface ShieldConfig {
-  /** Title shown on the shield. Use {appName} as placeholder. Default: "Hold on!" */
+  /** Title text. Use {appName} as placeholder for the blocked app name. Default: "Hold on!" */
   title?: string;
-  /** Subtitle shown on the shield. Use {appName} as placeholder. */
+  /** Title text color (hex). Default: "#111111" */
+  titleColor?: string;
+  /** Subtitle text. Use {appName} as placeholder. Default: "{appName} is blocked." */
   subtitle?: string;
-  /** Primary button label. Default: "Earn Free Time" */
+  /** Subtitle text color (hex). Default: "#8c8c8c" */
+  subtitleColor?: string;
+  /** Primary button label text. Default: "Earn Free Time" */
   primaryButtonLabel?: string;
-  /** Secondary button label. Set to null to hide. Default: "Not now" */
-  secondaryButtonLabel?: string | null;
+  /** Primary button label text color (hex). Default: "#ffffff" */
+  primaryButtonLabelColor?: string;
   /** Primary button background color (hex). Default: "#7cb518" */
-  primaryButtonColor?: string;
-  /** Background color (hex). Default: null (uses blur) */
+  primaryButtonBackgroundColor?: string;
+  /** Secondary button label text. Set to null to hide the button. Default: "Not now" */
+  secondaryButtonLabel?: string | null;
+  /** Secondary button label text color (hex). Default: "#8c8c8c" */
+  secondaryButtonLabelColor?: string;
+  /**
+   * Background tint color (hex, supports alpha e.g. "#FF000033").
+   * Applied as overlay on top of the blur. Default: null (no tint)
+   */
   backgroundColor?: string | null;
-  /** Background blur style. Default: "systemThickMaterial" */
+  /**
+   * Background blur style. Default: "systemThickMaterial"
+   *
+   * Options: "extraLight", "light", "dark", "regular", "prominent",
+   * "systemUltraThinMaterial", "systemThinMaterial", "systemMaterial",
+   * "systemThickMaterial", "systemChromeMaterial",
+   * and light/dark forced variants (e.g. "systemMaterialDark")
+   */
   backgroundBlurStyle?: string;
-  /** Path to shield icon image. Optional. */
+  /** Path to custom shield icon PNG (relative to project root). Optional. */
   icon?: string;
 }
 

@@ -141,7 +141,23 @@ function withAppBlockerIOS(config, pluginConfig) {
         }
       }
 
-      // Inject app group into extension Swift files
+      // Inject config values into extension Swift files
+      const shield = pluginConfig?.ios?.shield || {};
+      const replacements = {
+        "APP_GROUP_PLACEHOLDER": appGroup,
+        "SHIELD_TITLE_PLACEHOLDER": shield.title || "Hold on!",
+        "SHIELD_TITLE_COLOR_PLACEHOLDER": shield.titleColor || "#111111",
+        "SHIELD_SUBTITLE_PLACEHOLDER": shield.subtitle || "{appName} is blocked.",
+        "SHIELD_SUBTITLE_COLOR_PLACEHOLDER": shield.subtitleColor || "#8c8c8c",
+        "SHIELD_PRIMARY_LABEL_PLACEHOLDER": shield.primaryButtonLabel || "Earn Free Time",
+        "SHIELD_PRIMARY_LABEL_COLOR_PLACEHOLDER": shield.primaryButtonLabelColor || "#ffffff",
+        "SHIELD_PRIMARY_BG_COLOR_PLACEHOLDER": shield.primaryButtonBackgroundColor || shield.primaryButtonColor || "#7cb518",
+        "SHIELD_SECONDARY_LABEL_PLACEHOLDER": shield.secondaryButtonLabel === null ? "NONE" : (shield.secondaryButtonLabel || "Not now"),
+        "SHIELD_SECONDARY_LABEL_COLOR_PLACEHOLDER": shield.secondaryButtonLabelColor || "#8c8c8c",
+        "SHIELD_BG_COLOR_PLACEHOLDER": shield.backgroundColor || "NONE",
+        "SHIELD_BLUR_STYLE_PLACEHOLDER": shield.backgroundBlurStyle || "systemThickMaterial",
+      };
+
       const targetsDir = path.join(path.dirname(platformRoot), "targets");
       if (fs.existsSync(targetsDir)) {
         const dirs = fs.readdirSync(targetsDir);
@@ -153,16 +169,20 @@ function withAppBlockerIOS(config, pluginConfig) {
             if (!file.endsWith(".swift")) continue;
             const filePath = path.join(dirPath, file);
             let content = fs.readFileSync(filePath, "utf-8");
-            if (content.includes("APP_GROUP_PLACEHOLDER")) {
-              content = content.replace(/APP_GROUP_PLACEHOLDER/g, appGroup);
-              fs.writeFileSync(filePath, content);
+            let changed = false;
+            for (const [placeholder, value] of Object.entries(replacements)) {
+              if (content.includes(placeholder)) {
+                content = content.replace(new RegExp(placeholder, "g"), value);
+                changed = true;
+              }
             }
+            if (changed) fs.writeFileSync(filePath, content);
           }
         }
       }
 
       // Copy shield icon to ShieldConfiguration target assets
-      const shieldIcon = pluginConfig?.ios?.shield?.icon;
+      const shieldIcon = shield.icon;
       if (shieldIcon) {
         const projectRoot = path.dirname(platformRoot);
         const iconSrc = path.resolve(projectRoot, shieldIcon);
