@@ -216,14 +216,35 @@ startMonitoring();
 stopMonitoring();
 ```
 
-### iOS: App Selection
+### iOS: App Selection (Modal)
 
 ```typescript
 import { presentFamilyActivityPicker } from 'expo-app-blocker';
 
-// Opens the iOS system app/category picker
+// Opens the iOS system app/category picker as a modal sheet
 const items = await presentFamilyActivityPicker();
 // Returns: IOSBlockedItem[] - opaque tokens for selected apps/categories
+```
+
+### iOS: App Selection (Inline - Embedded in your UI)
+
+Renders the system `FamilyActivityPicker` directly in your app's UI (like Duolingo), instead of a modal:
+
+```typescript
+import { FamilyActivityPickerView } from 'expo-app-blocker';
+
+// In your component
+<FamilyActivityPickerView
+  initialSelection={selectionBase64}  // optional: restore previous selection
+  onSelectionChange={(event) => {
+    // event.items: IOSBlockedItem[] - selected apps/categories
+    // event.totalApps: number
+    // event.totalCategories: number
+    // event.selectionData: string - base64 to pass back as initialSelection
+    console.log(`Selected ${event.totalApps} apps`);
+  }}
+  style={{ height: 500 }}
+/>
 ```
 
 ### iOS: Block Configuration
