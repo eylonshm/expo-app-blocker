@@ -66,21 +66,23 @@ export interface RelockResult {
 // ──────────────────────────────────────────────────────────────────────────────
 
 export interface ShieldConfig {
-  /** Title shown on the shield. Use {appName} as placeholder. Default: "Hold on!" */
+  /** Title shown on the shield. Default: "Hold on!" */
   title?: string;
-  /** Subtitle shown on the shield. Use {appName} as placeholder. */
+  /** Subtitle shown on the shield. Use {appName} as placeholder. Default: "{appName} is blocked." */
   subtitle?: string;
   /** Primary button label. Default: "Earn Free Time" */
   primaryButtonLabel?: string;
   /** Secondary button label. Set to null to hide. Default: "Not now" */
   secondaryButtonLabel?: string | null;
-  /** Primary button background color (hex). Default: "#7cb518" */
+  /** Primary button background color (hex). Default: "#fb6107" */
   primaryButtonColor?: string;
-  /** Background color (hex). Default: null (uses blur) */
+  /** Title text color (hex). Default: "#111111" */
+  titleColor?: string;
+  /** Subtitle text color (hex). Default: "#737373" */
+  subtitleColor?: string;
+  /** Background color (hex). Default: null (uses system blur). Set to a color like "#f6f6f6" for a solid light background. */
   backgroundColor?: string | null;
-  /** Background blur style. Default: "systemThickMaterial" */
-  backgroundBlurStyle?: string;
-  /** Path to shield icon image. Optional. */
+  /** Path to shield icon image (PNG). Optional. */
   icon?: string;
 }
 

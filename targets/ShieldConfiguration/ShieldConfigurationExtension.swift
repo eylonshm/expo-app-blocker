@@ -6,15 +6,17 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
 
   private let appGroupIdentifier = "APP_GROUP_PLACEHOLDER"
 
-  // Grandmizer design system colors
-  private let primaryGreen = UIColor(red: 0.486, green: 0.710, blue: 0.094, alpha: 1.0) // #7cb518
-  private let darkGreen = UIColor(red: 0.361, green: 0.502, blue: 0.004, alpha: 1.0)    // #5c8001
-  private let accentOrange = UIColor(red: 0.984, green: 0.380, blue: 0.027, alpha: 1.0) // #fb6107
-  private let darkText = UIColor(red: 0.067, green: 0.067, blue: 0.067, alpha: 1.0)     // #111111
-  private let subtitleGray = UIColor(red: 0.45, green: 0.45, blue: 0.45, alpha: 1.0)
+  // All values below are replaced by the config plugin at prebuild time
+  private let shieldTitle = "SHIELD_TITLE_PLACEHOLDER"
+  private let shieldSubtitle = "SHIELD_SUBTITLE_PLACEHOLDER"
+  private let shieldPrimaryButtonLabel = "SHIELD_PRIMARY_BUTTON_PLACEHOLDER"
+  private let shieldSecondaryButtonLabel = "SHIELD_SECONDARY_BUTTON_PLACEHOLDER"
+  private let shieldPrimaryButtonColor = UIColor(red: SHIELD_PRIMARY_R_PLACEHOLDER, green: SHIELD_PRIMARY_G_PLACEHOLDER, blue: SHIELD_PRIMARY_B_PLACEHOLDER, alpha: 1.0)
+  private let shieldBackgroundColor: UIColor? = SHIELD_BG_PLACEHOLDER
+  private let shieldTitleColor = UIColor(red: SHIELD_TITLE_R_PLACEHOLDER, green: SHIELD_TITLE_G_PLACEHOLDER, blue: SHIELD_TITLE_B_PLACEHOLDER, alpha: 1.0)
+  private let shieldSubtitleColor = UIColor(red: SHIELD_SUBTITLE_R_PLACEHOLDER, green: SHIELD_SUBTITLE_G_PLACEHOLDER, blue: SHIELD_SUBTITLE_B_PLACEHOLDER, alpha: 1.0)
 
   private var mascotIcon: UIImage? {
-    // Load from the extension's own bundle
     let bundle = Bundle(for: type(of: self))
     return UIImage(named: "shield-icon", in: bundle, compatibleWith: nil)
       ?? UIImage(contentsOfFile: bundle.path(forResource: "shield-icon", ofType: "png") ?? "")
@@ -35,118 +37,51 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
     return Date() < expiration
   }
 
-  override func configuration(shielding application: Application) -> ShieldConfiguration {
-    let appName = application.localizedDisplayName ?? "This app"
-
-    // If temporarily unlocked, show a different message
+  private func makeConfig(appName: String) -> ShieldConfiguration {
     if isTemporarilyUnlocked() {
       return ShieldConfiguration(
-        backgroundBlurStyle: .systemThickMaterial,
-        backgroundColor: nil,
+        backgroundBlurStyle: shieldBackgroundColor == nil ? .systemThickMaterial : nil,
+        backgroundColor: shieldBackgroundColor,
         icon: mascotIcon,
-        title: ShieldConfiguration.Label(
-          text: "Almost there!",
-          color: darkText
-        ),
-        subtitle: ShieldConfiguration.Label(
-          text: "Your free time is loading. Try again in a moment.",
-          color: subtitleGray
-        ),
-        primaryButtonLabel: ShieldConfiguration.Label(
-          text: "OK",
-          color: .white
-        ),
-        primaryButtonBackgroundColor: primaryGreen,
+        title: ShieldConfiguration.Label(text: "Almost there!", color: shieldTitleColor),
+        subtitle: ShieldConfiguration.Label(text: "Your free time is loading. Try again in a moment.", color: shieldSubtitleColor),
+        primaryButtonLabel: ShieldConfiguration.Label(text: "OK", color: .white),
+        primaryButtonBackgroundColor: shieldPrimaryButtonColor,
         secondaryButtonLabel: nil
       )
     }
 
     let count = getBlockedAppCount()
-    let contextLine = count > 1
-      ? "You have \(count) apps blocked. Stay focused!"
-      : "Stay focused! Take a quick quiz to earn free time."
+    let context = count > 1 ? " You have \(count) apps blocked." : ""
+    let subtitle = shieldSubtitle.replacingOccurrences(of: "{appName}", with: appName) + context
+
+    let hasSecondary = !shieldSecondaryButtonLabel.isEmpty && shieldSecondaryButtonLabel != "none"
 
     return ShieldConfiguration(
-      backgroundBlurStyle: nil,
-      backgroundColor: UIColor(red: 0.965, green: 0.965, blue: 0.965, alpha: 1.0),
+      backgroundBlurStyle: shieldBackgroundColor == nil ? .systemThickMaterial : nil,
+      backgroundColor: shieldBackgroundColor,
       icon: mascotIcon,
-      title: ShieldConfiguration.Label(
-        text: "Hold on!",
-        color: darkText
-      ),
-      subtitle: ShieldConfiguration.Label(
-        text: "\(appName) is blocked. \(contextLine)",
-        color: subtitleGray
-      ),
-      primaryButtonLabel: ShieldConfiguration.Label(
-        text: "Earn Free Time",
-        color: .white
-      ),
-      primaryButtonBackgroundColor: accentOrange,
-      secondaryButtonLabel: ShieldConfiguration.Label(
-        text: "Not now",
-        color: subtitleGray
-      )
+      title: ShieldConfiguration.Label(text: shieldTitle, color: shieldTitleColor),
+      subtitle: ShieldConfiguration.Label(text: subtitle, color: shieldSubtitleColor),
+      primaryButtonLabel: ShieldConfiguration.Label(text: shieldPrimaryButtonLabel, color: .white),
+      primaryButtonBackgroundColor: shieldPrimaryButtonColor,
+      secondaryButtonLabel: hasSecondary ? ShieldConfiguration.Label(text: shieldSecondaryButtonLabel, color: shieldSubtitleColor) : nil
     )
   }
 
-  override func configuration(shielding application: Application,
-                               in category: ActivityCategory) -> ShieldConfiguration {
-    let categoryName = category.localizedDisplayName ?? "This category"
+  override func configuration(shielding application: Application) -> ShieldConfiguration {
+    makeConfig(appName: application.localizedDisplayName ?? "This app")
+  }
 
-    return ShieldConfiguration(
-      backgroundBlurStyle: nil,
-      backgroundColor: UIColor(red: 0.965, green: 0.965, blue: 0.965, alpha: 1.0),
-      icon: mascotIcon,
-      title: ShieldConfiguration.Label(
-        text: "Hold on!",
-        color: darkText
-      ),
-      subtitle: ShieldConfiguration.Label(
-        text: "\(categoryName) is blocked. Take a quick quiz to earn free time!",
-        color: subtitleGray
-      ),
-      primaryButtonLabel: ShieldConfiguration.Label(
-        text: "Earn Free Time",
-        color: .white
-      ),
-      primaryButtonBackgroundColor: accentOrange,
-      secondaryButtonLabel: ShieldConfiguration.Label(
-        text: "Not now",
-        color: subtitleGray
-      )
-    )
+  override func configuration(shielding application: Application, in category: ActivityCategory) -> ShieldConfiguration {
+    makeConfig(appName: category.localizedDisplayName ?? "This category")
   }
 
   override func configuration(shielding webDomain: WebDomain) -> ShieldConfiguration {
-    let domain = webDomain.domain ?? "This website"
-
-    return ShieldConfiguration(
-      backgroundBlurStyle: nil,
-      backgroundColor: UIColor(red: 0.965, green: 0.965, blue: 0.965, alpha: 1.0),
-      icon: mascotIcon,
-      title: ShieldConfiguration.Label(
-        text: "Hold on!",
-        color: darkText
-      ),
-      subtitle: ShieldConfiguration.Label(
-        text: "\(domain) is blocked. Take a quick quiz to earn free time!",
-        color: subtitleGray
-      ),
-      primaryButtonLabel: ShieldConfiguration.Label(
-        text: "Earn Free Time",
-        color: .white
-      ),
-      primaryButtonBackgroundColor: accentOrange,
-      secondaryButtonLabel: ShieldConfiguration.Label(
-        text: "Not now",
-        color: subtitleGray
-      )
-    )
+    makeConfig(appName: webDomain.domain ?? "This website")
   }
 
-  override func configuration(shielding webDomain: WebDomain,
-                               in category: ActivityCategory) -> ShieldConfiguration {
-    return configuration(shielding: webDomain)
+  override func configuration(shielding webDomain: WebDomain, in category: ActivityCategory) -> ShieldConfiguration {
+    makeConfig(appName: webDomain.domain ?? "This website")
   }
 }

@@ -141,7 +141,45 @@ function withAppBlockerIOS(config, pluginConfig) {
         }
       }
 
-      // Inject app group into extension Swift files
+      // Helper: hex to RGB floats
+      function hexToRgb(hex) {
+        const h = hex.replace("#", "");
+        return {
+          r: (parseInt(h.substring(0, 2), 16) / 255).toFixed(3),
+          g: (parseInt(h.substring(2, 4), 16) / 255).toFixed(3),
+          b: (parseInt(h.substring(4, 6), 16) / 255).toFixed(3),
+        };
+      }
+
+      // Shield config defaults
+      const shield = pluginConfig?.ios?.shield || {};
+      const primaryColor = hexToRgb(shield.primaryButtonColor || "#fb6107");
+      const titleColor = hexToRgb(shield.titleColor || "#111111");
+      const subtitleColor = hexToRgb(shield.subtitleColor || "#737373");
+      const bgColor = shield.backgroundColor ? hexToRgb(shield.backgroundColor) : null;
+
+      // All placeholder replacements
+      const replacements = {
+        "APP_GROUP_PLACEHOLDER": appGroup,
+        "SHIELD_TITLE_PLACEHOLDER": shield.title || "Hold on!",
+        "SHIELD_SUBTITLE_PLACEHOLDER": shield.subtitle || "{appName} is blocked.",
+        "SHIELD_PRIMARY_BUTTON_PLACEHOLDER": shield.primaryButtonLabel || "Earn Free Time",
+        "SHIELD_SECONDARY_BUTTON_PLACEHOLDER": shield.secondaryButtonLabel === null ? "none" : (shield.secondaryButtonLabel || "Not now"),
+        "SHIELD_PRIMARY_R_PLACEHOLDER": primaryColor.r,
+        "SHIELD_PRIMARY_G_PLACEHOLDER": primaryColor.g,
+        "SHIELD_PRIMARY_B_PLACEHOLDER": primaryColor.b,
+        "SHIELD_TITLE_R_PLACEHOLDER": titleColor.r,
+        "SHIELD_TITLE_G_PLACEHOLDER": titleColor.g,
+        "SHIELD_TITLE_B_PLACEHOLDER": titleColor.b,
+        "SHIELD_SUBTITLE_R_PLACEHOLDER": subtitleColor.r,
+        "SHIELD_SUBTITLE_G_PLACEHOLDER": subtitleColor.g,
+        "SHIELD_SUBTITLE_B_PLACEHOLDER": subtitleColor.b,
+        "SHIELD_BG_PLACEHOLDER": bgColor
+          ? `UIColor(red: ${bgColor.r}, green: ${bgColor.g}, blue: ${bgColor.b}, alpha: 1.0)`
+          : "nil",
+      };
+
+      // Inject all placeholders into extension Swift files
       const targetsDir = path.join(path.dirname(platformRoot), "targets");
       if (fs.existsSync(targetsDir)) {
         const dirs = fs.readdirSync(targetsDir);
@@ -153,10 +191,10 @@ function withAppBlockerIOS(config, pluginConfig) {
             if (!file.endsWith(".swift")) continue;
             const filePath = path.join(dirPath, file);
             let content = fs.readFileSync(filePath, "utf-8");
-            if (content.includes("APP_GROUP_PLACEHOLDER")) {
-              content = content.replace(/APP_GROUP_PLACEHOLDER/g, appGroup);
-              fs.writeFileSync(filePath, content);
+            for (const [key, value] of Object.entries(replacements)) {
+              content = content.replace(new RegExp(key, "g"), value);
             }
+            fs.writeFileSync(filePath, content);
           }
         }
       }
