@@ -30,6 +30,7 @@ Cross-platform app blocking module for Expo. Block other apps and redirect users
 - [Full Example: iOS App Blocker](#full-example-ios-app-blocker)
 - [Platform Notes](#platform-notes)
 - [How It Works](#how-it-works)
+- [Contributing](CONTRIBUTING.md)
 
 </details>
 
@@ -602,7 +603,7 @@ const styles = StyleSheet.create({
 
 ## Contributing
 
-Contributions are welcome! Please open an issue or PR.
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for setup instructions, project structure, and guidelines.
 
 ## License
 
