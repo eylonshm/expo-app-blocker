@@ -70,7 +70,8 @@ Add the plugin to your `app.json`:
             "subtitle": "{appName} is blocked.",
             "primaryButtonLabel": "Earn Free Time",
             "secondaryButtonLabel": "Not now",
-            "primaryButtonColor": "#7cb518"
+            "primaryButtonColor": "#7cb518",
+            "icon": "./assets/shield-icon.png"
           }
         }
       }]
@@ -90,7 +91,7 @@ Add the plugin to your `app.json`:
 | `ios.shield.secondaryButtonLabel` | `string\|null` | `"Not now"` | Secondary button text. Set to `null` to hide |
 | `ios.shield.primaryButtonColor` | `string` | `"#7cb518"` | Primary button background color (hex) |
 | `ios.shield.backgroundBlurStyle` | `string` | `"systemThickMaterial"` | iOS blur style |
-| `ios.shield.icon` | `string` | SF Symbol | Path to custom shield icon image |
+| `ios.shield.icon` | `string` | SF Symbol | Path to custom shield icon PNG (relative to project root, e.g. `"./assets/shield-icon.png"`) |
 | `android.notificationTitle` | `string` | `"App Blocked"` | Notification title |
 | `android.notificationText` | `string` | `"{appName} is blocked."` | Notification text |
 
