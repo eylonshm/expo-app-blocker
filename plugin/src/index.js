@@ -186,9 +186,35 @@ function withAppBlockerIOS(config, pluginConfig) {
       const primaryColor = hexToRgb(shield.primaryButtonColor || "#fb6107");
       const titleColor = hexToRgb(shield.titleColor || "#111111");
       const subtitleColor = hexToRgb(shield.subtitleColor || "#737373");
-      // background: "blur" (default) or a hex color string
-      const bgRaw = shield.background ?? shield.backgroundColor ?? null;
-      const bgColor = (bgRaw && bgRaw !== "blur") ? hexToRgb(bgRaw) : null;
+      // Background color (solid) - separate from blur
+      const bgColorHex = shield.backgroundColor || null;
+      const bgColor = bgColorHex ? hexToRgb(bgColorHex) : null;
+
+      // Blur style mapping
+      const blurStyleMap = {
+        "systemUltraThinMaterial": ".systemUltraThinMaterial",
+        "systemThinMaterial": ".systemThinMaterial",
+        "systemMaterial": ".systemMaterial",
+        "systemThickMaterial": ".systemThickMaterial",
+        "systemChromeMaterial": ".systemChromeMaterial",
+        "systemUltraThinMaterialLight": ".systemUltraThinMaterialLight",
+        "systemThinMaterialLight": ".systemThinMaterialLight",
+        "systemMaterialLight": ".systemMaterialLight",
+        "systemThickMaterialLight": ".systemThickMaterialLight",
+        "systemChromeMaterialLight": ".systemChromeMaterialLight",
+        "systemUltraThinMaterialDark": ".systemUltraThinMaterialDark",
+        "systemThinMaterialDark": ".systemThinMaterialDark",
+        "systemMaterialDark": ".systemMaterialDark",
+        "systemThickMaterialDark": ".systemThickMaterialDark",
+        "systemChromeMaterialDark": ".systemChromeMaterialDark",
+        "regular": ".regular",
+        "prominent": ".prominent",
+        "light": ".light",
+        "dark": ".dark",
+        "extraLight": ".extraLight",
+      };
+      const blurRaw = shield.backgroundBlurStyle || (bgColorHex ? null : "systemThickMaterial");
+      const blurSwift = blurRaw && blurStyleMap[blurRaw] ? blurStyleMap[blurRaw] : null;
 
       // All placeholder replacements
       const replacements = {
@@ -206,9 +232,10 @@ function withAppBlockerIOS(config, pluginConfig) {
         "SHIELD_SUBTITLE_R_PLACEHOLDER": subtitleColor.r,
         "SHIELD_SUBTITLE_G_PLACEHOLDER": subtitleColor.g,
         "SHIELD_SUBTITLE_B_PLACEHOLDER": subtitleColor.b,
-        "SHIELD_BG_PLACEHOLDER": bgColor
+        "SHIELD_BG_COLOR_PLACEHOLDER": bgColor
           ? `UIColor(red: ${bgColor.r}, green: ${bgColor.g}, blue: ${bgColor.b}, alpha: 1.0)`
           : "nil",
+        "SHIELD_BLUR_STYLE_PLACEHOLDER": blurSwift || "nil",
       };
 
       // Inject all placeholders into extension Swift files

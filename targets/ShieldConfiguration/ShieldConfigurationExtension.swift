@@ -12,7 +12,8 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
   private let shieldPrimaryButtonLabel = "SHIELD_PRIMARY_BUTTON_PLACEHOLDER"
   private let shieldSecondaryButtonLabel = "SHIELD_SECONDARY_BUTTON_PLACEHOLDER"
   private let shieldPrimaryButtonColor = UIColor(red: SHIELD_PRIMARY_R_PLACEHOLDER, green: SHIELD_PRIMARY_G_PLACEHOLDER, blue: SHIELD_PRIMARY_B_PLACEHOLDER, alpha: 1.0)
-  private let shieldBackgroundColor: UIColor? = SHIELD_BG_PLACEHOLDER
+  private let shieldBackgroundColor: UIColor? = SHIELD_BG_COLOR_PLACEHOLDER
+  private let shieldBlurStyle: UIBlurEffect.Style? = SHIELD_BLUR_STYLE_PLACEHOLDER
   private let shieldTitleColor = UIColor(red: SHIELD_TITLE_R_PLACEHOLDER, green: SHIELD_TITLE_G_PLACEHOLDER, blue: SHIELD_TITLE_B_PLACEHOLDER, alpha: 1.0)
   private let shieldSubtitleColor = UIColor(red: SHIELD_SUBTITLE_R_PLACEHOLDER, green: SHIELD_SUBTITLE_G_PLACEHOLDER, blue: SHIELD_SUBTITLE_B_PLACEHOLDER, alpha: 1.0)
 
@@ -40,7 +41,7 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
   private func makeConfig(appName: String) -> ShieldConfiguration {
     if isTemporarilyUnlocked() {
       return ShieldConfiguration(
-        backgroundBlurStyle: shieldBackgroundColor == nil ? .systemThickMaterial : nil,
+        backgroundBlurStyle: shieldBlurStyle,
         backgroundColor: shieldBackgroundColor,
         icon: mascotIcon,
         title: ShieldConfiguration.Label(text: "Almost there!", color: shieldTitleColor),

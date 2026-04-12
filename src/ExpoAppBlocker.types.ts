@@ -81,11 +81,31 @@ export interface ShieldConfig {
   /** Subtitle text color (hex). Default: "#737373" */
   subtitleColor?: string;
   /**
-   * Background style. Two modes:
-   * - "blur" (default): Frosted glass effect over the blocked app (iOS systemThickMaterial)
-   * - A hex color string (e.g. "#f6f6f6"): Solid color background
+   * Solid background color (hex). Optional.
+   * When set, the shield uses this color instead of (or in addition to) a blur.
+   * Example: "#f6f6f6" for light gray, "#1a1a2e" for dark.
    */
-  background?: "blur" | string;
+  backgroundColor?: string | null;
+  /**
+   * Background blur style. Default: "systemThickMaterial" (when no backgroundColor is set).
+   * Set to null to disable blur (when using backgroundColor only).
+   * Both can be combined - blur renders behind the color.
+   *
+   * Adaptive (light/dark auto):
+   * - "systemUltraThinMaterial", "systemThinMaterial", "systemMaterial",
+   *   "systemThickMaterial", "systemChromeMaterial"
+   *
+   * Light only:
+   * - "systemUltraThinMaterialLight", "systemThinMaterialLight", "systemMaterialLight",
+   *   "systemThickMaterialLight", "systemChromeMaterialLight"
+   *
+   * Dark only:
+   * - "systemUltraThinMaterialDark", "systemThinMaterialDark", "systemMaterialDark",
+   *   "systemThickMaterialDark", "systemChromeMaterialDark"
+   *
+   * Legacy: "regular", "prominent", "light", "dark", "extraLight"
+   */
+  backgroundBlurStyle?: string | null;
   /** Path to shield icon image (PNG). Optional. */
   icon?: string;
 }
