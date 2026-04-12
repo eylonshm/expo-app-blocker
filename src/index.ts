@@ -15,6 +15,7 @@ import type {
   IOSBlockConfiguration,
   TemporaryUnlockResult,
   RelockResult,
+  FamilyActivityPickerSelectionEvent,
 } from "./ExpoAppBlocker.types";
 
 export type {
@@ -28,6 +29,7 @@ export type {
   RelockResult,
   ShieldConfig,
   PluginConfig,
+  FamilyActivityPickerSelectionEvent,
 } from "./ExpoAppBlocker.types";
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -221,5 +223,38 @@ export function BlockedAppsNativeList({
     selectionData: selectionData || "",
     tokens,
     style: [{ minHeight: 50 }, style],
+  });
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// iOS Native View: inline FamilyActivityPicker (embedded in your UI)
+// ──────────────────────────────────────────────────────────────────────────────
+
+let NativePickerView: any = null;
+if (Platform.OS === "ios") {
+  try {
+    NativePickerView = requireNativeViewManager("ExpoAppBlockerPicker");
+  } catch {}
+}
+
+export function FamilyActivityPickerView({
+  initialSelection,
+  onSelectionChange,
+  style,
+}: {
+  /** Base64-encoded FamilyActivitySelection (from a previous picker result's selectionData) */
+  initialSelection?: string;
+  /** Called when the user changes selection in the picker */
+  onSelectionChange?: (event: FamilyActivityPickerSelectionEvent) => void;
+  style?: any;
+}) {
+  if (!NativePickerView || Platform.OS !== "ios") return null;
+
+  return React.createElement(NativePickerView, {
+    initialSelection: initialSelection || "",
+    onSelectionChange: onSelectionChange
+      ? (e: any) => onSelectionChange(e.nativeEvent)
+      : undefined,
+    style: [{ minHeight: 400 }, style],
   });
 }

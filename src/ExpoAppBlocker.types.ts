@@ -61,6 +61,13 @@ export interface RelockResult {
   locked: boolean;
 }
 
+export interface FamilyActivityPickerSelectionEvent {
+  items: IOSBlockedItem[];
+  totalApps: number;
+  totalCategories: number;
+  selectionData: string;
+}
+
 // ──────────────────────────────────────────────────────────────────────────────
 // Plugin configuration types
 // ──────────────────────────────────────────────────────────────────────────────

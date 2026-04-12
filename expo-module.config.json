@@ -4,6 +4,6 @@
     "modules": ["expo.modules.appblocker.ExpoAppBlockerModule"]
   },
   "apple": {
-    "modules": ["ExpoAppBlockerModule"]
+    "modules": ["ExpoAppBlockerModule", "ExpoAppBlockerPickerModule"]
   }
 }
