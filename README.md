@@ -22,6 +22,8 @@ Cross-platform app blocking module for Expo. Block other apps and redirect users
 
 ### Apple Developer Portal (iOS)
 
+> **Full step-by-step guide**: [docs/APPLE_DEVELOPER_SETUP.md](docs/APPLE_DEVELOPER_SETUP.md)
+
 1. Register **4 App IDs** with **Family Controls** and **App Groups** capabilities:
    - `com.yourapp.id` (main app)
    - `com.yourapp.id.DeviceActivityMonitor`
