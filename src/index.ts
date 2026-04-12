@@ -16,6 +16,8 @@ import type {
   TemporaryUnlockResult,
   RelockResult,
   FamilyActivityPickerSelectionEvent,
+  FamilyActivityPickerViewProps,
+  BlockedAppsNativeListProps,
 } from "./ExpoAppBlocker.types";
 
 export type {
@@ -30,6 +32,8 @@ export type {
   ShieldConfig,
   PluginConfig,
   FamilyActivityPickerSelectionEvent,
+  FamilyActivityPickerViewProps,
+  BlockedAppsNativeListProps,
 } from "./ExpoAppBlocker.types";
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -208,11 +212,7 @@ export function BlockedAppsNativeList({
   items,
   selectionData,
   style,
-}: {
-  items: IOSBlockedItem[];
-  selectionData?: string;
-  style?: any;
-}) {
+}: BlockedAppsNativeListProps) {
   if (!NativeBlockedAppsView || Platform.OS !== "ios") return null;
 
   const tokens = items
@@ -242,15 +242,7 @@ export function FamilyActivityPickerView({
   onSelectionChange,
   theme,
   style,
-}: {
-  /** Base64-encoded FamilyActivitySelection (from a previous picker result's selectionData) */
-  initialSelection?: string;
-  /** Called when the user changes selection in the picker */
-  onSelectionChange?: (event: FamilyActivityPickerSelectionEvent) => void;
-  /** Color scheme: "light", "dark", or "system" (default). Forces the picker appearance. */
-  theme?: "light" | "dark" | "system";
-  style?: any;
-}) {
+}: FamilyActivityPickerViewProps) {
   if (!NativePickerView || Platform.OS !== "ios") return null;
 
   return React.createElement(NativePickerView, {

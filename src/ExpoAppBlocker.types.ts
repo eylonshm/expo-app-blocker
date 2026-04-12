@@ -62,10 +62,34 @@ export interface RelockResult {
 }
 
 export interface FamilyActivityPickerSelectionEvent {
+  /** Selected apps and categories (pass to setBlockConfiguration) */
   items: IOSBlockedItem[];
+  /** Number of individual apps selected */
   totalApps: number;
+  /** Number of categories selected */
   totalCategories: number;
+  /** Base64 string - save and pass back as initialSelection to restore state */
   selectionData: string;
+}
+
+export interface FamilyActivityPickerViewProps {
+  /** Base64-encoded FamilyActivitySelection to restore a previous selection */
+  initialSelection?: string;
+  /** Called each time the user toggles an app or category */
+  onSelectionChange?: (event: FamilyActivityPickerSelectionEvent) => void;
+  /** Forces the picker's color scheme: "light", "dark", or "system" (default) */
+  theme?: "light" | "dark" | "system";
+  /** Standard React Native style */
+  style?: any;
+}
+
+export interface BlockedAppsNativeListProps {
+  /** Array of blocked items from picker */
+  items: IOSBlockedItem[];
+  /** Base64-encoded FamilyActivitySelection for accurate rendering */
+  selectionData?: string;
+  /** Standard React Native style */
+  style?: any;
 }
 
 // ──────────────────────────────────────────────────────────────────────────────

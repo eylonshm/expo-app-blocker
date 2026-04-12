@@ -10,11 +10,13 @@ Cross-platform app blocking module for Expo. Block other apps and redirect users
 - Block specific apps from being used
 - Detect when a blocked app is opened (Android: polling, iOS: system shield)
 - Customizable iOS shield overlay (icon, title, subtitle, button text, colors)
+- Inline app picker - embed the iOS system app picker directly in your UI (like Duolingo)
+- Modal app picker - present the system picker as a sheet
+- Native view for rendering blocked app names/icons (Apple's opaque tokens)
 - Temporary unlock with timer
 - Auto-relock when unlock period expires (iOS DeviceActivityMonitor extension)
 - Notification when blocked app is detected
 - Persist blocked apps across app restarts
-- Native view for rendering blocked app names/icons on iOS (Apple's opaque tokens)
 - Automatic iOS extension target creation via `@bacons/apple-targets`
 - Full Expo Config Plugin - no manual native setup required
 
@@ -216,35 +218,57 @@ startMonitoring();
 stopMonitoring();
 ```
 
-### iOS: App Selection (Modal)
+### iOS: App Selection
+
+Two approaches for letting users pick which apps to block:
+
+#### Option A: Inline Picker (Recommended)
+
+Embeds Apple's `FamilyActivityPicker` directly in your UI — the same approach Duolingo and other apps use. The picker renders as a native view with a search bar and app/category list.
+
+```tsx
+import { FamilyActivityPickerView } from 'expo-app-blocker';
+
+<FamilyActivityPickerView
+  initialSelection={selectionData}
+  onSelectionChange={(event) => {
+    // Apply blocks in real-time as user toggles apps
+    await setBlockConfiguration({ blockedItems: event.items, isActive: true });
+  }}
+  theme="light"
+  style={{ height: 500 }}
+/>
+```
+
+##### `FamilyActivityPickerView` Props
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `initialSelection` | `string` | `undefined` | Base64-encoded `FamilyActivitySelection` from a previous `selectionData`. Restores the user's prior selection when the picker mounts |
+| `onSelectionChange` | `(event) => void` | `undefined` | Called each time the user toggles an app or category. See event shape below |
+| `theme` | `"light" \| "dark" \| "system"` | `"system"` | Forces the picker's color scheme. Use `"light"` or `"dark"` to match your app's theme regardless of device settings |
+| `style` | `ViewStyle` | `{ minHeight: 400 }` | Standard React Native style. Set an explicit `height` for best results |
+
+##### `onSelectionChange` Event
+
+```typescript
+{
+  items: IOSBlockedItem[];    // Selected apps and categories (pass to setBlockConfiguration)
+  totalApps: number;          // Number of individual apps selected
+  totalCategories: number;    // Number of categories selected
+  selectionData: string;      // Base64 string — save this and pass back as initialSelection
+}
+```
+
+#### Option B: Modal Picker
+
+Opens the system picker as a modal sheet. Returns a promise that resolves when the user taps "Done" or rejects on cancel.
 
 ```typescript
 import { presentFamilyActivityPicker } from 'expo-app-blocker';
 
-// Opens the iOS system app/category picker as a modal sheet
 const items = await presentFamilyActivityPicker();
 // Returns: IOSBlockedItem[] - opaque tokens for selected apps/categories
-```
-
-### iOS: App Selection (Inline - Embedded in your UI)
-
-Renders the system `FamilyActivityPicker` directly in your app's UI (like Duolingo), instead of a modal:
-
-```typescript
-import { FamilyActivityPickerView } from 'expo-app-blocker';
-
-// In your component
-<FamilyActivityPickerView
-  initialSelection={selectionBase64}  // optional: restore previous selection
-  onSelectionChange={(event) => {
-    // event.items: IOSBlockedItem[] - selected apps/categories
-    // event.totalApps: number
-    // event.totalCategories: number
-    // event.selectionData: string - base64 to pass back as initialSelection
-    console.log(`Selected ${event.totalApps} apps`);
-  }}
-  style={{ height: 500 }}
-/>
 ```
 
 ### iOS: Block Configuration
@@ -309,12 +333,11 @@ subscription?.remove();
 
 ### iOS: Native Blocked Apps List
 
-Renders blocked app tokens with real names and icons using Apple's native Label view:
+Renders blocked app tokens with their real names and icons using Apple's native `Label` view. Since iOS app tokens are opaque, this is the only way to display app names/icons.
 
-```typescript
+```tsx
 import { BlockedAppsNativeList } from 'expo-app-blocker';
 
-// In your component
 <BlockedAppsNativeList
   items={blockedItems}
   selectionData={selectionBase64}
@@ -322,13 +345,21 @@ import { BlockedAppsNativeList } from 'expo-app-blocker';
 />
 ```
 
+##### `BlockedAppsNativeList` Props
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `items` | `IOSBlockedItem[]` | Required | Array of blocked items (from `presentFamilyActivityPicker()` or `onSelectionChange`) |
+| `selectionData` | `string` | `undefined` | Base64-encoded `FamilyActivitySelection`. Preferred over `items` for accurate rendering |
+| `style` | `ViewStyle` | `{ minHeight: 50 }` | Standard React Native style |
+
 ## Platform Notes
 
 ### iOS Limitations
 
 - **Physical device required** - Screen Time APIs don't work in the simulator
 - **App tokens are opaque** - You cannot extract app names/bundle IDs from tokens. Use `BlockedAppsNativeList` to render them with Apple's native Label
-- **FamilyActivityPicker is required** - No API to enumerate installed apps on iOS
+- **FamilyActivityPicker is required** - No API to enumerate installed apps on iOS. Use `<FamilyActivityPickerView>` (inline) or `presentFamilyActivityPicker()` (modal)
 - **Shield customization is limited** - Only icon, title, subtitle, button labels, and colors can be changed. No custom views, fonts, or animations
 - **Cannot open apps from shield** - Use notifications as a workaround to redirect users to your app
 
@@ -365,7 +396,7 @@ import { BlockedAppsNativeList } from 'expo-app-blocker';
 ### iOS Flow
 
 1. User authorizes Screen Time via `requestPermissions()`
-2. User selects apps to block via `presentFamilyActivityPicker()`
+2. User selects apps to block — either inline via `<FamilyActivityPickerView>` or modal via `presentFamilyActivityPicker()`
 3. `setBlockConfiguration()` applies shields via `ManagedSettingsStore`
 4. When a blocked app is opened, iOS shows the shield overlay (customized via `ShieldConfigurationExtension`)
 5. When the user taps the shield button, `ShieldActionExtension` sends a notification via Darwin notification center
