@@ -1,0 +1,47 @@
+{
+  "name": "expo-app-blocker",
+  "version": "0.1.0",
+  "description": "Expo module for cross-platform app blocking. Android: UsageStatsManager + Overlay. iOS: Screen Time API (FamilyControls + ManagedSettings + DeviceActivity).",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf build"
+  },
+  "keywords": [
+    "expo",
+    "react-native",
+    "app-blocker",
+    "screen-time",
+    "family-controls",
+    "digital-wellbeing",
+    "parental-controls",
+    "usage-stats"
+  ],
+  "author": "",
+  "license": "MIT",
+  "homepage": "https://github.com/eylonshm/expo-app-blocker",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/eylonshm/expo-app-blocker.git"
+  },
+  "bugs": {
+    "url": "https://github.com/eylonshm/expo-app-blocker/issues"
+  },
+  "peerDependencies": {
+    "expo": ">=54.0.0",
+    "expo-modules-core": ">=3.0.0",
+    "react": ">=18.0.0",
+    "react-native": ">=0.74.0",
+    "@bacons/apple-targets": ">=4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@bacons/apple-targets": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "typescript": "~5.9.2",
+    "expo-modules-core": "^3.0.0"
+  }
+}
