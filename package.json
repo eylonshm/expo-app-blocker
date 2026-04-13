@@ -39,6 +39,6 @@
   },
   "devDependencies": {
     "typescript": "~5.9.2",
-    "expo-modules-core": "^3.0.0"
+    "expo-modules-core": "^55.0.22"
   }
 }
