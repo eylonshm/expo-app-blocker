@@ -1,0 +1,42 @@
+name: Feature Request
+description: Suggest a new feature or API addition
+labels: ["enhancement"]
+body:
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - iOS
+        - Android
+        - Both
+        - Not platform-specific
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the use case or limitation you're running into.
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: What would you like to see added or changed? Include API shape if relevant.
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any workarounds you've tried, or other libraries that handle this differently.
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Willing to contribute?
+      options:
+        - label: I'd be willing to open a PR for this

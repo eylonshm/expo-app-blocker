@@ -12,6 +12,9 @@ https://github.com/user-attachments/assets/37f34797-6b92-40d5-911a-90c40e9ffaaa
 
 > **iOS requires Apple Developer Portal setup before building.** See [Prerequisites](#prerequisites) for details.
 
+> [!IMPORTANT]
+> **Submit your Family Controls distribution approval request now.** App Store distribution requires Apple approval per bundle ID — it can take days to weeks and you can't ship without it. [Request here](https://developer.apple.com/contact/request/family-controls-distribution) (you'll need to submit once per bundle ID — 4 total). You can develop and test locally without waiting.
+
 <details>
 <summary><strong>Table of Contents</strong></summary>
 
@@ -167,7 +170,9 @@ npx expo run:android         # Android works on emulator
 
 3. Assign the App Group to all 4 App IDs
 
-4. Request **Family Controls** capability approval (works in dev builds without approval)
+4. Request **Family Controls** capability approval (required for App Store/TestFlight — works in local dev builds without it)
+   - Submit the form **once per bundle ID** (4 total): [developer.apple.com/contact/request/family-controls-distribution](https://developer.apple.com/contact/request/family-controls-distribution)
+   - Incomplete capability setup causes cryptic provisioning errors — make sure all 4 App IDs have Family Controls + App Groups enabled
 
 ### Android
 
@@ -564,6 +569,8 @@ const styles = StyleSheet.create({
 - **FamilyActivityPicker is required** - No API to enumerate installed apps on iOS
 - **Shield customization is limited** - Only icon, title, subtitle, button labels, and colors can be changed. No custom views, fonts, or animations
 - **Cannot open apps from shield** - Use notifications as a workaround to redirect users to your app
+- **Permission status may lag** - After a user grants or revokes Screen Time access outside your app, the status may not update until the app is restarted. Re-check on app foreground
+- **Picker may crash on large categories** - The native `FamilyActivityPicker` can crash when scrolling through very large app categories. Consider providing fallback UI (e.g. a retry button) if this affects your users
 
 ### Android Limitations
 

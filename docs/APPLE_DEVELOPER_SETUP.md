@@ -9,6 +9,27 @@ This guide walks you through the one-time setup required in the Apple Developer 
 
 ---
 
+## Step 0: Request Family Controls Approval (Do This First)
+
+> **Do this before anything else.** App Store and TestFlight distribution require explicit Apple approval for the Family Controls entitlement. Approval can take days to weeks — start the process immediately.
+
+Because `expo-app-blocker` creates 4 bundle identifiers (main app + 3 extensions), **you must submit the request form once for each bundle ID**:
+
+| Bundle ID | Submit for |
+|---|---|
+| `com.yourapp.id` | Main app |
+| `com.yourapp.id.DeviceActivityMonitor` | DeviceActivityMonitor extension |
+| `com.yourapp.id.ShieldAction` | ShieldAction extension |
+| `com.yourapp.id.ShieldConfiguration` | ShieldConfiguration extension |
+
+Submit each one at: https://developer.apple.com/contact/request/family-controls-distribution
+
+**You can continue with local development builds without waiting for approval.** Approval is only required to distribute via TestFlight or the App Store.
+
+> **Warning:** If you skip or partially complete the capability setup in Steps 2–6, you will run into cryptic provisioning errors during build. Make sure all 4 App IDs have both **Family Controls** and **App Groups** enabled before building.
+
+---
+
 ## Step 1: Create the App Group
 
 The App Group enables data sharing between your main app and the three iOS extensions.
@@ -129,16 +150,13 @@ When you're done, you should have:
 
 ## About Family Controls Approval
 
-- **Development builds** (run from Xcode): Family Controls works **without** formal Apple approval
-- **TestFlight**: May require approval depending on your account
-- **App Store**: Requires Family Controls capability approval from Apple
+| Distribution method | Approval required? |
+|---|---|
+| Local dev build (Xcode / `expo run:ios`) | No |
+| TestFlight | Yes |
+| App Store | Yes |
 
-To request approval:
-1. Go to https://developer.apple.com/contact/request/family-controls-distribution
-2. Fill out the form explaining your app's use case
-3. Wait for Apple's response (can take days to weeks)
-
-**You can develop and test locally without waiting for approval.**
+See [Step 0](#step-0-request-family-controls-approval-do-this-first) for submission instructions. You must submit once per bundle ID (4 total).
 
 ---
 

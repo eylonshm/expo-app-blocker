@@ -1,0 +1,93 @@
+name: Bug Report
+description: Something isn't working as expected
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before filing a bug, please check [existing issues](https://github.com/eylonshm/expo-app-blocker/issues) and the [Platform Notes](https://github.com/eylonshm/expo-app-blocker#platform-notes) in the README.
+
+  - type: input
+    id: version
+    attributes:
+      label: expo-app-blocker version
+      placeholder: "e.g. 1.2.0"
+    validations:
+      required: true
+
+  - type: input
+    id: expo_version
+    attributes:
+      label: Expo SDK version
+      placeholder: "e.g. 52"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - iOS
+        - Android
+        - Both
+    validations:
+      required: true
+
+  - type: input
+    id: os_version
+    attributes:
+      label: OS version
+      placeholder: "e.g. iOS 17.4 / Android 14"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: device_type
+    attributes:
+      label: Device type
+      options:
+        - Physical device
+        - Simulator / Emulator
+    validations:
+      required: true
+
+  - type: input
+    id: device_model
+    attributes:
+      label: Device model
+      placeholder: "e.g. iPhone 15 Pro, Pixel 7"
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: A clear description of the bug. Include what you expected vs what actually happened.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Call `requestPermissions()`
+        2. Call `setBlockConfiguration(...)`
+        3. Open blocked app
+        4. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs or errors
+      description: Paste Xcode console output (iOS) or `adb logcat` output (Android). Redact any personal data.
+      render: shell
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Plugin config (app.json)
+      description: Paste the relevant `expo-app-blocker` plugin config from your `app.json`.
+      render: json
