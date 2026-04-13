@@ -38,7 +38,7 @@
     "react-native": ">=0.74.0"
   },
   "devDependencies": {
-    "typescript": "~5.9.2",
+    "typescript": "~6.0.2",
     "expo-modules-core": "^3.0.0"
   }
 }
