@@ -19,6 +19,7 @@ https://github.com/user-attachments/assets/37f34797-6b92-40d5-911a-90c40e9ffaaa
 <summary><strong>Table of Contents</strong></summary>
 
 - [Features](#features)
+- [Build Compatibility](#build-compatibility)
 - [Quick Start](#quick-start)
 - [Prerequisites](#prerequisites)
 - [Plugin Options](#plugin-options)
@@ -55,6 +56,23 @@ https://github.com/user-attachments/assets/37f34797-6b92-40d5-911a-90c40e9ffaaa
 - Persist blocked apps across app restarts
 - Automatic iOS extension target creation via `@bacons/apple-targets`
 - Full Expo Config Plugin - no manual native setup required
+
+## Build Compatibility
+
+| Build type | Supported | Notes |
+|---|---|---|
+| **Expo Go** | ❌ | Requires custom native modules — not available in Expo Go |
+| **Development build** (`expo-dev-client`) | ✅ | Fully supported — same setup as production |
+| **Local build** (`expo run:ios` / `expo run:android`) | ✅ | Fully supported |
+| **EAS Build** | ✅ | Fully supported — see [EAS Build config](#eas-build) |
+| **Production / App Store** | ✅ | Fully supported — iOS requires Apple approval first |
+
+**This plugin requires a development build or a production build.** If you're using Expo Go, you'll need to [create a development build](https://docs.expo.dev/develop/development-builds/introduction/) first:
+
+```bash
+npx expo install expo-dev-client
+npx expo run:ios --device    # or: eas build --profile development
+```
 
 ## Quick Start
 
