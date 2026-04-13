@@ -13,7 +13,9 @@ https://github.com/user-attachments/assets/37f34797-6b92-40d5-911a-90c40e9ffaaa
 > **iOS requires Apple Developer Portal setup before building.** See [Prerequisites](#prerequisites) for details.
 
 > [!IMPORTANT]
-> **Submit your Family Controls distribution approval request now.** App Store distribution requires Apple approval per bundle ID — it can take days to weeks and you can't ship without it. [Request here](https://developer.apple.com/contact/request/family-controls-distribution) (you'll need to submit once per bundle ID — 4 total). You can develop and test locally without waiting.
+> **Submit your Family Controls distribution approval request now.** App Store distribution requires Apple approval per bundle ID — it can take days to weeks and you can't ship without it. [Request here](https://developer.apple.com/contact/request/family-controls-distribution) (you'll need to submit once per bundle ID — 4 total).
+>
+> **While waiting for approval**, use the **Family Controls (Development)** capability in Xcode instead of the standard "Family Controls" — it's marked "Development only" in Xcode's Signing & Capabilities tab and works without Apple's approval. Development builds with this entitlement are fully functional on device but cannot be submitted to TestFlight or the App Store.
 
 <details>
 <summary><strong>Table of Contents</strong></summary>
@@ -188,8 +190,9 @@ npx expo run:android         # Android works on emulator
 
 3. Assign the App Group to all 4 App IDs
 
-4. Request **Family Controls** capability approval (required for App Store/TestFlight — works in local dev builds without it)
+4. Request **Family Controls** capability approval (required for App Store/TestFlight distribution)
    - Submit the form **once per bundle ID** (4 total): [developer.apple.com/contact/request/family-controls-distribution](https://developer.apple.com/contact/request/family-controls-distribution)
+   - **While waiting for approval**: use **Family Controls (Development)** in Xcode's Signing & Capabilities tab — fully functional in dev builds, just not distributable
    - Incomplete capability setup causes cryptic provisioning errors — make sure all 4 App IDs have Family Controls + App Groups enabled
 
 ### Android
