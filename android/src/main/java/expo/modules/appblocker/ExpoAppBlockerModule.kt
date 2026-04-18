@@ -61,6 +61,16 @@ class ExpoAppBlockerModule : Module() {
       context.startActivity(intent)
     }
 
+    Function("setAndroidConfig") { config: Map<String, Any?> ->
+      AppBlockerPrefs.setAndroidConfig(
+        context,
+        overlayText = config["overlayText"] as? String,
+        notificationTitle = config["notificationTitle"] as? String,
+        notificationText = config["notificationText"] as? String,
+      )
+      Log.d(TAG, "setAndroidConfig: $config")
+    }
+
     Function("setBlockedApps") { packageNames: List<String> ->
       AppBlockerPrefs.setBlockedPackages(context, packageNames)
       Log.d(TAG, "setBlockedApps: $packageNames")

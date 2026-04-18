@@ -11,6 +11,7 @@ import type {
   AndroidPermissions,
   IOSPermissions,
   AndroidBlockableApp,
+  AndroidConfig,
   IOSBlockedItem,
   IOSBlockConfiguration,
   TemporaryUnlockResult,
@@ -30,6 +31,7 @@ export type {
   TemporaryUnlockResult,
   RelockResult,
   ShieldConfig,
+  AndroidConfig,
   PluginConfig,
   FamilyActivityPickerSelectionEvent,
   FamilyActivityPickerViewProps,
@@ -111,6 +113,11 @@ export function setBlockedApps(packageNames: string[]): void {
 export function getBlockedApps(): string[] {
   if (Platform.OS !== "android") return [];
   return NativeModule.getBlockedApps();
+}
+
+export function configureAndroid(config: AndroidConfig): void {
+  if (Platform.OS !== "android") return;
+  NativeModule.setAndroidConfig(config);
 }
 
 export function startMonitoring(): void {

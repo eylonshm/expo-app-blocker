@@ -65,7 +65,10 @@ class AppBlockerService : Service() {
       packageName
     }
 
-    val scheme = this.packageName.replace(".", "-")
+    val title = AppBlockerPrefs.getNotificationTitle(this).replace("{appName}", appName)
+    val text = AppBlockerPrefs.getNotificationText(this).replace("{appName}", appName)
+
+    val scheme = getAppScheme()
     val deepLinkIntent = Intent(
       Intent.ACTION_VIEW,
       Uri.parse("${scheme}://blocked?app=${Uri.encode(appName)}&package=${Uri.encode(packageName)}")
@@ -73,14 +76,23 @@ class AppBlockerService : Service() {
       addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
     }
 
+    val launchIntent = packageManager.getLaunchIntentForPackage(this.packageName)
+      ?.apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP) }
+
+    val resolvedIntent = try {
+      deepLinkIntent.resolveActivity(packageManager)?.let { deepLinkIntent } ?: launchIntent
+    } catch (e: Exception) {
+      launchIntent
+    } ?: deepLinkIntent
+
     val pendingIntent = PendingIntent.getActivity(
-      this, 0, deepLinkIntent,
+      this, packageName.hashCode(), resolvedIntent,
       PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
 
     val notification = NotificationCompat.Builder(this, BLOCKED_CHANNEL_ID)
-      .setContentTitle("App Blocked")
-      .setContentText("$appName is blocked. Tap to earn free time!")
+      .setContentTitle(title)
+      .setContentText(text)
       .setSmallIcon(applicationInfo.icon)
       .setAutoCancel(true)
       .setPriority(NotificationCompat.PRIORITY_HIGH)
@@ -89,6 +101,17 @@ class AppBlockerService : Service() {
 
     val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
     manager.notify(BLOCKED_NOTIFICATION_ID, notification)
+  }
+
+  private fun getAppScheme(): String {
+    val resId = resources.getIdentifier("expo_app_blocker_scheme", "string", packageName)
+    if (resId != 0) return getString(resId)
+    return try {
+      packageManager.getLaunchIntentForPackage(packageName)?.data?.scheme
+        ?: packageName.replace(".", "-")
+    } catch (e: Exception) {
+      packageName.replace(".", "-")
+    }
   }
 
   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {

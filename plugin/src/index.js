@@ -18,8 +18,20 @@ const path = require("path");
 // Android
 // ──────────────────────────────────────────────────────────────────────────────
 
+function getAndroidScheme(config, pluginConfig) {
+  if (pluginConfig?.android?.scheme) return pluginConfig.android.scheme;
+  const configScheme = Array.isArray(config.scheme) ? config.scheme[0] : config.scheme;
+  if (configScheme) return configScheme;
+  const pkg = config.android?.package;
+  if (pkg) return pkg.replace(/\./g, "-");
+  return null;
+}
+
 function withAppBlockerAndroid(config, pluginConfig) {
-  return withAndroidManifest(config, (config) => {
+  const scheme = getAndroidScheme(config, pluginConfig);
+
+  // Manifest: permissions, service, receiver, and deep-link intent filter
+  config = withAndroidManifest(config, (config) => {
     const manifest = config.modResults;
     const mainApplication = manifest.manifest.application?.[0];
     if (!mainApplication) return config;
@@ -75,8 +87,64 @@ function withAppBlockerAndroid(config, pluginConfig) {
       });
     }
 
+    // Add deep-link intent filter to MainActivity so notification taps route back to the app
+    if (scheme) {
+      const activities = mainApplication.activity || [];
+      const mainActivity = activities.find(
+        (a) => a.$?.["android:name"] === ".MainActivity" || a.$?.["android:name"]?.endsWith(".MainActivity")
+      );
+      if (mainActivity) {
+        if (!mainActivity["intent-filter"]) mainActivity["intent-filter"] = [];
+        const alreadyHasScheme = mainActivity["intent-filter"].some((f) =>
+          (f.data || []).some((d) => d.$?.["android:scheme"] === scheme)
+        );
+        if (!alreadyHasScheme) {
+          mainActivity["intent-filter"].push({
+            action: [{ $: { "android:name": "android.intent.action.VIEW" } }],
+            category: [
+              { $: { "android:name": "android.intent.category.DEFAULT" } },
+              { $: { "android:name": "android.intent.category.BROWSABLE" } },
+            ],
+            data: [{ $: { "android:scheme": scheme } }],
+          });
+        }
+      }
+    }
+
     return config;
   });
+
+  // Write scheme to strings.xml so AppBlockerService can read it at runtime
+  if (scheme) {
+    config = withDangerousMod(config, [
+      "android",
+      (config) => {
+        const platformRoot = config.modRequest.platformProjectRoot;
+        const valuesDir = path.join(platformRoot, "app", "src", "main", "res", "values");
+        const stringsPath = path.join(valuesDir, "strings.xml");
+
+        if (!fs.existsSync(valuesDir)) {
+          fs.mkdirSync(valuesDir, { recursive: true });
+        }
+
+        let xml = fs.existsSync(stringsPath)
+          ? fs.readFileSync(stringsPath, "utf-8")
+          : '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n</resources>';
+
+        const tag = `<string name="expo_app_blocker_scheme">${scheme}</string>`;
+        if (!xml.includes('name="expo_app_blocker_scheme"')) {
+          xml = xml.replace("</resources>", `    ${tag}\n</resources>`);
+        } else {
+          xml = xml.replace(/<string name="expo_app_blocker_scheme">.*?<\/string>/, tag);
+        }
+
+        fs.writeFileSync(stringsPath, xml);
+        return config;
+      },
+    ]);
+  }
+
+  return config;
 }
 
 // ──────────────────────────────────────────────────────────────────────────────

@@ -4,12 +4,15 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.PixelFormat
+import android.graphics.Typeface
 import android.net.Uri
 import android.os.Build
 import android.util.Log
+import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
+import android.widget.LinearLayout
 import android.widget.TextView
 
 class OverlayManager(private val context: Context) {
@@ -29,7 +32,8 @@ class OverlayManager(private val context: Context) {
       return
     }
 
-    val view = buildOverlayView()
+    val appName = blockedPackageName?.let { resolveAppName(it) } ?: ""
+    val view = buildOverlayView(appName)
     try {
       windowManager.addView(view, buildLayoutParams())
       overlayView = view
@@ -57,14 +61,16 @@ class OverlayManager(private val context: Context) {
     overlayView = null
   }
 
+  private fun resolveAppName(packageName: String): String = try {
+    val pm = context.packageManager
+    val appInfo = pm.getApplicationInfo(packageName, 0)
+    pm.getApplicationLabel(appInfo).toString()
+  } catch (e: Exception) {
+    packageName
+  }
+
   private fun navigateToApp(blockedPackageName: String) {
-    val appName = try {
-      val pm = context.packageManager
-      val appInfo = pm.getApplicationInfo(blockedPackageName, 0)
-      pm.getApplicationLabel(appInfo).toString()
-    } catch (e: Exception) {
-      blockedPackageName
-    }
+    val appName = resolveAppName(blockedPackageName)
 
     // Use the app's own scheme for deep linking
     val scheme = getAppScheme()
@@ -102,22 +108,40 @@ class OverlayManager(private val context: Context) {
   }
 
   private fun getAppScheme(): String {
-    return try {
-      val pm = context.packageManager
-      val intent = pm.getLaunchIntentForPackage(context.packageName)
-      intent?.data?.scheme ?: context.packageName.replace(".", "-")
-    } catch (e: Exception) {
-      context.packageName.replace(".", "-")
-    }
+    val resId = context.resources.getIdentifier("expo_app_blocker_scheme", "string", context.packageName)
+    if (resId != 0) return context.getString(resId)
+    return context.packageName.replace(".", "-")
   }
 
-  private fun buildOverlayView(): View {
-    val textView = TextView(context).apply {
-      text = ""
-      setBackgroundColor(Color.parseColor("#F0000000"))
+  private fun buildOverlayView(appName: String): View {
+    val density = context.resources.displayMetrics.density
+    fun dp(value: Int) = (value * density).toInt()
+
+    val overlayText = AppBlockerPrefs.getOverlayText(context)
+      .replace("{appName}", appName)
+
+    return LinearLayout(context).apply {
+      orientation = LinearLayout.VERTICAL
       gravity = Gravity.CENTER
+      setBackgroundColor(Color.WHITE)
+      setPadding(dp(32), dp(32), dp(32), dp(32))
+
+      addView(TextView(context).apply {
+        text = "App Blocked"
+        setTextColor(Color.parseColor("#111111"))
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, 24f)
+        setTypeface(typeface, Typeface.BOLD)
+        gravity = Gravity.CENTER
+        setPadding(0, 0, 0, dp(12))
+      })
+
+      addView(TextView(context).apply {
+        text = overlayText
+        setTextColor(Color.parseColor("#737373"))
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+        gravity = Gravity.CENTER
+      })
     }
-    return textView
   }
 
   private fun buildLayoutParams(): WindowManager.LayoutParams {

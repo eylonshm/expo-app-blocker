@@ -141,6 +141,15 @@ export interface ShieldConfig {
   icon?: string;
 }
 
+export interface AndroidConfig {
+  /** Text shown on the blocking overlay. Use {appName} as placeholder. Default: "{appName} is blocked." */
+  overlayText?: string;
+  /** Notification title when app is blocked. Use {appName} as placeholder. Default: "App Blocked" */
+  notificationTitle?: string;
+  /** Notification text when app is blocked. Use {appName} as placeholder. */
+  notificationText?: string;
+}
+
 export interface PluginConfig {
   ios?: {
     /** App Group identifier for shared data between app and extensions. Required. */
@@ -148,12 +157,12 @@ export interface PluginConfig {
     /** Shield overlay customization */
     shield?: ShieldConfig;
   };
-  android?: {
-    /** Notification title when app is blocked. Use {appName} as placeholder. */
-    notificationTitle?: string;
-    /** Notification text when app is blocked. Use {appName} as placeholder. */
-    notificationText?: string;
-    /** Text shown on the blocking overlay. Default: "" (empty) */
-    overlayText?: string;
+  android?: AndroidConfig & {
+    /**
+     * URL scheme used for deep-linking back into your app when a blocked app is detected.
+     * Defaults to your app's `scheme` from app.json, or the package name with dots replaced by hyphens.
+     * Must match the scheme registered in your AndroidManifest intent-filter.
+     */
+    scheme?: string;
   };
 }
