@@ -152,7 +152,8 @@ function withAppBlockerAndroid(config, pluginConfig) {
 // ──────────────────────────────────────────────────────────────────────────────
 
 function withAppBlockerIOS(config, pluginConfig) {
-  const appGroup = pluginConfig?.ios?.appGroup || "group.expo.app-blocker";
+  const bundleId = config.ios?.bundleIdentifier || "expo.app-blocker";
+  const appGroup = pluginConfig?.ios?.appGroup || `group.${bundleId}`;
 
   config = withEntitlementsPlist(config, (config) => {
     config.modResults["com.apple.developer.family-controls"] = true;

@@ -14,6 +14,6 @@ public struct ExpoAppBlockerConfig {
       return appGroup
     }
     // Fallback - should be overridden
-    return "group.expo.app-blocker"
+    return "group.\(Bundle.main.bundleIdentifier ?? "expo.app-blocker")"
   }
 }
