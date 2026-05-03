@@ -52,8 +52,9 @@ export async function getPermissionStatus(): Promise<PermissionStatus> {
   if (Platform.OS === "android") {
     const overlay = await NativeModule.checkOverlayPermission();
     const usageStats = await NativeModule.checkUsageStatsPermission();
-    const details: AndroidPermissions = { platform: "android", overlay, usageStats };
-    return { allGranted: overlay && usageStats, details };
+    const notifications = await NativeModule.checkNotificationPermission();
+    const details: AndroidPermissions = { platform: "android", overlay, usageStats, notifications };
+    return { allGranted: overlay && usageStats && notifications, details };
   }
 
   if (Platform.OS === "ios") {

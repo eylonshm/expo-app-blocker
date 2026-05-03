@@ -11,6 +11,7 @@ export interface AndroidPermissions {
   platform: "android";
   overlay: boolean;
   usageStats: boolean;
+  notifications: boolean;
 }
 
 export interface IOSPermissions {
