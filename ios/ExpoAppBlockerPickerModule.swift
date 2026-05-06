@@ -132,15 +132,11 @@ class FamilyActivityPickerNativeView: ExpoView {
     }
 
     let items = appItems + categoryItems
-    let summary: [String: Any] = [
-      "type": "summary",
-      "totalApps": selection.applicationTokens.count,
-      "totalCategories": selection.categoryTokens.count,
-      "selectionData": selectionBase64
-    ]
 
+    // Do not append a synthetic "summary" row to `items` — JS counts `items.length` for UI and
+    // `totalApps` / `totalCategories` / `selectionData` already carry the same metadata.
     onSelectionChange([
-      "items": items + [summary],
+      "items": items,
       "totalApps": selection.applicationTokens.count,
       "totalCategories": selection.categoryTokens.count,
       "selectionData": selectionBase64

@@ -258,7 +258,14 @@ export function FamilyActivityPickerView({
     initialSelection: initialSelection || "",
     theme: theme || "system",
     onSelectionChange: onSelectionChange
-      ? (e: any) => onSelectionChange(e.nativeEvent)
+      ? (e: any) => {
+          const ne = e.nativeEvent;
+          const items = (ne.items ?? []).filter(
+            (item: { type?: string }) =>
+              item?.type === "app" || item?.type === "category",
+          );
+          onSelectionChange({ ...ne, items });
+        }
       : undefined,
     ...(clearTrigger !== undefined ? { clearTrigger } : {}),
     style: [{ minHeight: 400 }, style],
