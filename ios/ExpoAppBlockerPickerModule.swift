@@ -22,11 +22,10 @@ public class ExpoAppBlockerPickerModule: Module {
         view.setTheme(theme)
       }
 
-      // Increment this value to programmatically clear the picker's selection
-      // without remounting. Works because FamilyActivityPicker is driven by a
-      // @Binding — setting the backing @Published var resets the SwiftUI view.
+      // Increment to clear selection in-process. Applied only after the initial
+      // React prop snapshot so mounting with `{ clearTrigger: 0 }` does not wipe state.
       Prop("clearTrigger") { (view: FamilyActivityPickerNativeView, trigger: Int) in
-        view.clearSelection()
+        view.applyClearTrigger(trigger)
       }
     }
   }
@@ -37,7 +36,6 @@ public class ExpoAppBlockerPickerModule: Module {
 class FamilyActivityPickerViewModel: ObservableObject {
   @Published var selection = FamilyActivitySelection()
   @Published var colorScheme: ColorScheme? = nil
-  @Published var clearCounter: Int = 0
   var didSetInitial = false
 }
 
@@ -47,6 +45,9 @@ class FamilyActivityPickerNativeView: ExpoView {
   let onSelectionChange = EventDispatcher()
   let viewModel = FamilyActivityPickerViewModel()
   private var hostingController: UIHostingController<InlinePickerContentView>?
+  /// First `clearTrigger` snapshot from React establishes baseline — do not treat as clear.
+  private var didSyncClearTriggerFromReact = false
+  private var lastAppliedClearTrigger: Int = 0
 
   required init(appContext: AppContext? = nil) {
     super.init(appContext: appContext)
@@ -72,10 +73,25 @@ class FamilyActivityPickerNativeView: ExpoView {
     viewModel.selection = selection
   }
 
-  func clearSelection() {
-    viewModel.selection = FamilyActivitySelection()
+  /// Increments-only: first snapshot records baseline without clearing; higher values clear UI.
+  func applyClearTrigger(_ trigger: Int) {
+    if !didSyncClearTriggerFromReact {
+      didSyncClearTriggerFromReact = true
+      lastAppliedClearTrigger = trigger
+      return
+    }
+    guard trigger > lastAppliedClearTrigger else { return }
+    lastAppliedClearTrigger = trigger
+    clearSelectionWithoutRemount()
+  }
+
+  private func clearSelectionWithoutRemount() {
+    var transaction = Transaction()
+    transaction.disablesAnimations = true
+    withTransaction(transaction) {
+      viewModel.selection = FamilyActivitySelection()
+    }
     viewModel.didSetInitial = false
-    viewModel.clearCounter += 1
   }
 
   func setTheme(_ theme: String) {
@@ -139,11 +155,9 @@ struct InlinePickerContentView: View {
   var onSelectionChange: (FamilyActivitySelection) -> Void
 
   var body: some View {
-    // .id(clearCounter) forces SwiftUI to destroy and recreate FamilyActivityPicker
-    // when clearSelection() is called. The picker does not respond to external
-    // binding mutations after initial presentation — recreation is the only reset path.
+    // Prefer binding-only resets: recreating FamilyActivityPicker (e.g. via `.id`) causes a visible flash.
+    // If a future iOS/SDK build stops syncing empty selections here, reconsider a targeted redraw.
     let picker = FamilyActivityPicker(selection: $viewModel.selection)
-      .id(viewModel.clearCounter)
       .onChange(of: viewModel.selection) { newSelection in
         onSelectionChange(newSelection)
       }

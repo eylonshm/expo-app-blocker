@@ -250,6 +250,7 @@ export function FamilyActivityPickerView({
   onSelectionChange,
   theme,
   style,
+  clearTrigger,
 }: FamilyActivityPickerViewProps) {
   if (!NativePickerView || Platform.OS !== "ios") return null;
 
@@ -259,6 +260,7 @@ export function FamilyActivityPickerView({
     onSelectionChange: onSelectionChange
       ? (e: any) => onSelectionChange(e.nativeEvent)
       : undefined,
+    ...(clearTrigger !== undefined ? { clearTrigger } : {}),
     style: [{ minHeight: 400 }, style],
   });
 }
