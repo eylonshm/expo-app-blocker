@@ -21,6 +21,13 @@ public class ExpoAppBlockerPickerModule: Module {
       Prop("theme") { (view: FamilyActivityPickerNativeView, theme: String) in
         view.setTheme(theme)
       }
+
+      // Increment this value to programmatically clear the picker's selection
+      // without remounting. Works because FamilyActivityPicker is driven by a
+      // @Binding — setting the backing @Published var resets the SwiftUI view.
+      Prop("clearTrigger") { (view: FamilyActivityPickerNativeView, trigger: Int) in
+        view.clearSelection()
+      }
     }
   }
 }
@@ -30,6 +37,7 @@ public class ExpoAppBlockerPickerModule: Module {
 class FamilyActivityPickerViewModel: ObservableObject {
   @Published var selection = FamilyActivitySelection()
   @Published var colorScheme: ColorScheme? = nil
+  @Published var clearCounter: Int = 0
   var didSetInitial = false
 }
 
@@ -62,6 +70,12 @@ class FamilyActivityPickerNativeView: ExpoView {
     guard !viewModel.didSetInitial else { return }
     viewModel.didSetInitial = true
     viewModel.selection = selection
+  }
+
+  func clearSelection() {
+    viewModel.selection = FamilyActivitySelection()
+    viewModel.didSetInitial = false
+    viewModel.clearCounter += 1
   }
 
   func setTheme(_ theme: String) {
@@ -125,7 +139,11 @@ struct InlinePickerContentView: View {
   var onSelectionChange: (FamilyActivitySelection) -> Void
 
   var body: some View {
+    // .id(clearCounter) forces SwiftUI to destroy and recreate FamilyActivityPicker
+    // when clearSelection() is called. The picker does not respond to external
+    // binding mutations after initial presentation — recreation is the only reset path.
     let picker = FamilyActivityPicker(selection: $viewModel.selection)
+      .id(viewModel.clearCounter)
       .onChange(of: viewModel.selection) { newSelection in
         onSelectionChange(newSelection)
       }

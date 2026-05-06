@@ -80,6 +80,8 @@ export interface FamilyActivityPickerViewProps {
   onSelectionChange?: (event: FamilyActivityPickerSelectionEvent) => void;
   /** Forces the picker's color scheme: "light", "dark", or "system" (default) */
   theme?: "light" | "dark" | "system";
+  /** Increment to programmatically clear the picker selection without remounting */
+  clearTrigger?: number;
   /** Standard React Native style */
   style?: any;
 }
