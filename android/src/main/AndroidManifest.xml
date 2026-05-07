@@ -1,1 +1,21 @@
-<manifest/>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!--
+    QUERY_ALL_PACKAGES — needed so getInstalledApps() can enumerate every
+    user-installed app that has a launcher activity. Without this, Android
+    11+ (API 30+) returns only a subset based on package-visibility
+    queries. App blockers / digital wellbeing apps are an approved use
+    case for this permission on the Play Store.
+  -->
+  <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+
+  <!--
+    Fallback queries for devices/builds that do not grant
+    QUERY_ALL_PACKAGES — covers any app declaring a launcher activity.
+  -->
+  <queries>
+    <intent>
+      <action android:name="android.intent.action.MAIN" />
+      <category android:name="android.intent.category.LAUNCHER" />
+    </intent>
+  </queries>
+</manifest>
