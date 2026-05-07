@@ -27,6 +27,7 @@ export interface IOSPermissions {
 export interface AndroidBlockableApp {
   packageName: string;
   name: string;
+  iconBase64?: string | null;
 }
 
 export interface IOSBlockedItem {
