@@ -34,7 +34,7 @@ public class ExpoAppBlockerPickerModule: Module {
 // MARK: - ViewModel
 
 class FamilyActivityPickerViewModel: ObservableObject {
-  @Published var selection = FamilyActivitySelection()
+  @Published var selection = FamilyActivitySelection(includeEntireCategory: true)
   @Published var colorScheme: ColorScheme? = nil
   var didSetInitial = false
 }
@@ -70,7 +70,7 @@ class FamilyActivityPickerNativeView: ExpoView {
   func setInitialSelection(_ selection: FamilyActivitySelection) {
     guard !viewModel.didSetInitial else { return }
     viewModel.didSetInitial = true
-    viewModel.selection = selection
+    viewModel.selection = normalizeSelection(selection)
   }
 
   /// Increments-only: first snapshot records baseline without clearing; higher values clear UI.
@@ -89,9 +89,19 @@ class FamilyActivityPickerNativeView: ExpoView {
     var transaction = Transaction()
     transaction.disablesAnimations = true
     withTransaction(transaction) {
-      viewModel.selection = FamilyActivitySelection()
+      viewModel.selection = FamilyActivitySelection(includeEntireCategory: true)
     }
     viewModel.didSetInitial = false
+  }
+
+  private func normalizeSelection(_ selection: FamilyActivitySelection) -> FamilyActivitySelection {
+    // Apple forum reports indicate includeEntireCategory may not survive some encode/decode paths.
+    // Rehydrate into a fresh includeEntireCategory=true value so category picks expand to app tokens.
+    var normalized = FamilyActivitySelection(includeEntireCategory: true)
+    normalized.applicationTokens = selection.applicationTokens
+    normalized.categoryTokens = selection.categoryTokens
+    normalized.webDomainTokens = selection.webDomainTokens
+    return normalized
   }
 
   func setTheme(_ theme: String) {
