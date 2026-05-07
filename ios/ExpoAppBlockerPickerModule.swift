@@ -136,12 +136,23 @@ class FamilyActivityPickerNativeView: ExpoView {
       }
     }
 
+    var webDomainItems: [[String: Any]] = []
+    for token in selection.webDomainTokens {
+      if let data = try? JSONEncoder().encode(token) {
+        webDomainItems.append([
+          "type": "webDomain",
+          "token": data.base64EncodedString(),
+          "domain": String(describing: token)
+        ])
+      }
+    }
+
     var selectionBase64 = ""
     if let selectionData = try? JSONEncoder().encode(selection) {
       selectionBase64 = selectionData.base64EncodedString()
     }
 
-    let items = appItems + categoryItems
+    let items = appItems + categoryItems + webDomainItems
 
     // Do not append a synthetic "summary" row to `items` — JS counts `items.length` for UI and
     // `totalApps` / `totalCategories` / `selectionData` already carry the same metadata.
@@ -149,6 +160,7 @@ class FamilyActivityPickerNativeView: ExpoView {
       "items": items,
       "totalApps": selection.applicationTokens.count,
       "totalCategories": selection.categoryTokens.count,
+      "totalWebDomains": selection.webDomainTokens.count,
       "selectionData": selectionBase64
     ])
   }

@@ -30,11 +30,12 @@ export interface AndroidBlockableApp {
 }
 
 export interface IOSBlockedItem {
-  type: "app" | "category";
+  type: "app" | "category" | "webDomain";
   token: string;
   bundleIdentifier?: string;
   displayName?: string;
   categoryName?: string;
+  domain?: string;
   iconBase64?: string;
 }
 
@@ -63,12 +64,14 @@ export interface RelockResult {
 }
 
 export interface FamilyActivityPickerSelectionEvent {
-  /** Selected apps and categories (pass to setBlockConfiguration) */
+  /** Selected apps, categories, and web domains (pass to setBlockConfiguration) */
   items: IOSBlockedItem[];
   /** Number of individual apps selected */
   totalApps: number;
   /** Number of categories selected */
   totalCategories: number;
+  /** Number of web domains selected */
+  totalWebDomains: number;
   /** Base64 string - save and pass back as initialSelection to restore state */
   selectionData: string;
 }

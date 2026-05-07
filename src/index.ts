@@ -262,7 +262,9 @@ export function FamilyActivityPickerView({
           const ne = e.nativeEvent;
           const items = (ne.items ?? []).filter(
             (item: { type?: string }) =>
-              item?.type === "app" || item?.type === "category",
+              item?.type === "app" ||
+              item?.type === "category" ||
+              item?.type === "webDomain",
           );
           onSelectionChange({ ...ne, items });
         }

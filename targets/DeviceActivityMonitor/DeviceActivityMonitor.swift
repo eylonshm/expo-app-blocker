@@ -34,6 +34,7 @@ class AppBlockerDeviceActivityMonitor: DeviceActivityMonitor {
     guard let configDict = userDefaults.dictionary(forKey: blockConfigStorageKey) else {
       store.shield.applications = nil
       store.shield.applicationCategories = nil
+      store.shield.webDomains = nil
       return
     }
 
@@ -64,13 +65,22 @@ class AppBlockerDeviceActivityMonitor: DeviceActivityMonitor {
       }
 
       let itemTypeRaw = (selection["type"] as? String ?? "app").lowercased()
-      let itemType: MonitorBlockedItemType = itemTypeRaw == "category" ? .category : .app
+      let itemType: MonitorBlockedItemType
+      switch itemTypeRaw {
+      case "category":
+        itemType = .category
+      case "webdomain":
+        itemType = .webDomain
+      default:
+        itemType = .app
+      }
 
       return MonitorBlockedItemInfo(
         type: itemType,
         tokenId: tokenString,
         appToken: itemType == .app ? decodeApplicationToken(from: tokenString) : nil,
-        categoryToken: itemType == .category ? decodeCategoryToken(from: tokenString) : nil
+        categoryToken: itemType == .category ? decodeCategoryToken(from: tokenString) : nil,
+        webDomainToken: itemType == .webDomain ? decodeWebDomainToken(from: tokenString) : nil
       )
     }
 
@@ -82,15 +92,18 @@ class AppBlockerDeviceActivityMonitor: DeviceActivityMonitor {
     guard config.isActive else {
       store.shield.applications = nil
       store.shield.applicationCategories = nil
+      store.shield.webDomains = nil
       return
     }
 
     let validAppTokens = config.items.compactMap { $0.appToken }
     let validCategoryTokens = config.items.compactMap { $0.categoryToken }
+    let validWebDomainTokens = config.items.compactMap { $0.webDomainToken }
 
-    guard !validAppTokens.isEmpty || !validCategoryTokens.isEmpty else {
+    guard !validAppTokens.isEmpty || !validCategoryTokens.isEmpty || !validWebDomainTokens.isEmpty else {
       store.shield.applications = nil
       store.shield.applicationCategories = nil
+      store.shield.webDomains = nil
       return
     }
 
@@ -104,6 +117,12 @@ class AppBlockerDeviceActivityMonitor: DeviceActivityMonitor {
       store.shield.applicationCategories = .specific(Set(validCategoryTokens))
     } else {
       store.shield.applicationCategories = nil
+    }
+
+    if !validWebDomainTokens.isEmpty {
+      store.shield.webDomains = Set(validWebDomainTokens)
+    } else {
+      store.shield.webDomains = nil
     }
   }
 
@@ -130,11 +149,24 @@ class AppBlockerDeviceActivityMonitor: DeviceActivityMonitor {
       return nil
     }
   }
+
+  private func decodeWebDomainToken(from encoded: String) -> WebDomainToken? {
+    guard let data = Data(base64Encoded: encoded) else {
+      return nil
+    }
+
+    do {
+      return try JSONDecoder().decode(WebDomainToken.self, from: data)
+    } catch {
+      return nil
+    }
+  }
 }
 
 enum MonitorBlockedItemType: String {
   case app
   case category
+  case webDomain
 }
 
 struct MonitorBlockedItemInfo {
@@ -142,6 +174,7 @@ struct MonitorBlockedItemInfo {
   let tokenId: String
   let appToken: ApplicationToken?
   let categoryToken: ActivityCategoryToken?
+  let webDomainToken: WebDomainToken?
 }
 
 struct MonitorBlockConfig {

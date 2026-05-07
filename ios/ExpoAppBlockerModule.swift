@@ -161,6 +161,7 @@ public class ExpoAppBlockerModule: Module {
         self.cancelRelockActivity()
         self.store.shield.applications = nil
         self.store.shield.applicationCategories = nil
+        self.store.shield.webDomains = nil
         self.currentBlockConfig = nil
         self.userDefaults.removeObject(forKey: self.blockConfigStorageKey)
         self.sharedDefaults?.removeObject(forKey: self.blockConfigStorageKey)
@@ -204,6 +205,7 @@ public class ExpoAppBlockerModule: Module {
         DispatchQueue.main.async {
           self.store.shield.applications = nil
           self.store.shield.applicationCategories = nil
+          self.store.shield.webDomains = nil
         }
 
         // Try to schedule relock, but don't fail if schedule is too short
@@ -353,6 +355,7 @@ public class ExpoAppBlockerModule: Module {
         DispatchQueue.main.async {
           self.store.shield.applications = nil
           self.store.shield.applicationCategories = nil
+          self.store.shield.webDomains = nil
         }
 
         do {
@@ -393,16 +396,26 @@ public class ExpoAppBlockerModule: Module {
       }
 
       let itemTypeRaw = (selection["type"] as? String ?? "app").lowercased()
-      let itemType: BlockedItemType = itemTypeRaw == "category" ? .category : .app
+      let itemType: BlockedItemType
+      switch itemTypeRaw {
+      case "category":
+        itemType = .category
+      case "webdomain":
+        itemType = .webDomain
+      default:
+        itemType = .app
+      }
 
       return BlockedItemInfo(
         type: itemType,
         tokenId: tokenString,
         appToken: itemType == .app ? self.decodeApplicationToken(from: tokenString) : nil,
         categoryToken: itemType == .category ? self.decodeCategoryToken(from: tokenString) : nil,
+        webDomainToken: itemType == .webDomain ? self.decodeWebDomainToken(from: tokenString) : nil,
         bundleIdentifier: selection["bundleIdentifier"] as? String,
         displayName: selection["displayName"] as? String,
         categoryName: selection["categoryName"] as? String,
+        domain: selection["domain"] as? String,
         iconBase64: selection["iconBase64"] as? String
       )
     }
@@ -426,21 +439,25 @@ public class ExpoAppBlockerModule: Module {
     guard config.isActive else {
       store.shield.applications = nil
       store.shield.applicationCategories = nil
+      store.shield.webDomains = nil
       return
     }
 
     if isTemporarilyUnlockedInternal() {
       store.shield.applications = nil
       store.shield.applicationCategories = nil
+      store.shield.webDomains = nil
       return
     }
 
     let validAppTokens = config.items.compactMap { $0.appToken }
     let validCategoryTokens = config.items.compactMap { $0.categoryToken }
+    let validWebDomainTokens = config.items.compactMap { $0.webDomainToken }
 
-    guard !validAppTokens.isEmpty || !validCategoryTokens.isEmpty else {
+    guard !validAppTokens.isEmpty || !validCategoryTokens.isEmpty || !validWebDomainTokens.isEmpty else {
       store.shield.applications = nil
       store.shield.applicationCategories = nil
+      store.shield.webDomains = nil
       return
     }
 
@@ -454,6 +471,12 @@ public class ExpoAppBlockerModule: Module {
       store.shield.applicationCategories = .specific(Set(validCategoryTokens))
     } else {
       store.shield.applicationCategories = nil
+    }
+
+    if !validWebDomainTokens.isEmpty {
+      store.shield.webDomains = Set(validWebDomainTokens)
+    } else {
+      store.shield.webDomains = nil
     }
   }
 
@@ -558,6 +581,10 @@ public class ExpoAppBlockerModule: Module {
           if let token = tokenInfo.categoryToken, let encoded = self.encodeCategoryToken(token) {
             tokenId = encoded
           }
+        case .webDomain:
+          if let token = tokenInfo.webDomainToken, let encoded = self.encodeWebDomainToken(token) {
+            tokenId = encoded
+          }
         }
       }
 
@@ -578,6 +605,9 @@ public class ExpoAppBlockerModule: Module {
       }
       if let categoryName = tokenInfo.categoryName {
         dict["categoryName"] = categoryName
+      }
+      if let domain = tokenInfo.domain {
+        dict["domain"] = domain
       }
       if let iconBase64 = tokenInfo.iconBase64 {
         dict["iconBase64"] = iconBase64
@@ -667,6 +697,22 @@ public class ExpoAppBlockerModule: Module {
 
   private func decodeCategoryToken(from encoded: String) -> ActivityCategoryToken? {
     return Self.decodeCategoryTokenStatic(from: encoded)
+  }
+
+  private func encodeWebDomainToken(_ token: WebDomainToken) -> String? {
+    do {
+      let data = try JSONEncoder().encode(token)
+      return data.base64EncodedString()
+    } catch {
+      return nil
+    }
+  }
+
+  private func decodeWebDomainToken(from encoded: String) -> WebDomainToken? {
+    guard let data = Data(base64Encoded: encoded) else {
+      return nil
+    }
+    return try? JSONDecoder().decode(WebDomainToken.self, from: data)
   }
 
   // Static versions for use in View prop closures
@@ -789,6 +835,7 @@ struct BlockedAppsContentView: View {
 enum BlockedItemType: String {
   case app
   case category
+  case webDomain
 }
 
 struct BlockedItemInfo {
@@ -796,9 +843,11 @@ struct BlockedItemInfo {
   let tokenId: String
   let appToken: ApplicationToken?
   let categoryToken: ActivityCategoryToken?
+  let webDomainToken: WebDomainToken?
   let bundleIdentifier: String?
   let displayName: String?
   let categoryName: String?
+  let domain: String?
   let iconBase64: String?
 }
 
@@ -932,17 +981,30 @@ struct FamilyActivityPickerView: View {
       ]
     }
 
+    let webDomainItems: [[String: Any]] = selection.webDomainTokens.compactMap { webDomainToken in
+      guard let tokenId = encodeSelectionWebDomainToken(webDomainToken) else {
+        return nil
+      }
+      let domain = String(describing: webDomainToken)
+      return [
+        "type": "webDomain",
+        "token": tokenId,
+        "domain": domain
+      ]
+    }
+
     // Serialize the full FamilyActivitySelection for the native view
     var selectionBase64 = ""
     if let selectionData = try? JSONEncoder().encode(selection) {
       selectionBase64 = selectionData.base64EncodedString()
     }
 
-    var result: [[String: Any]] = appItems + categoryItems
+    var result: [[String: Any]] = appItems + categoryItems + webDomainItems
     result.append([
       "type": "summary",
       "totalApps": selection.applications.count,
       "totalCategories": selection.categoryTokens.count,
+      "totalWebDomains": selection.webDomainTokens.count,
       "selectionData": selectionBase64
     ])
 
@@ -962,6 +1024,15 @@ struct FamilyActivityPickerView: View {
   }
 
   private func encodeSelectionCategoryToken(_ token: ActivityCategoryToken) -> String? {
+    do {
+      let data = try JSONEncoder().encode(token)
+      return data.base64EncodedString()
+    } catch {
+      return nil
+    }
+  }
+
+  private func encodeSelectionWebDomainToken(_ token: WebDomainToken) -> String? {
     do {
       let data = try JSONEncoder().encode(token)
       return data.base64EncodedString()

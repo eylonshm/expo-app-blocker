@@ -90,12 +90,8 @@ class ExpoAppBlockerModule : Module() {
 
     AsyncFunction("getInstalledApps") {
       val pm = context.packageManager
-      val intent = Intent(Intent.ACTION_MAIN).apply {
-        addCategory(Intent.CATEGORY_LAUNCHER)
-      }
-      val apps = pm.queryIntentActivities(intent, 0)
-      apps.mapNotNull { resolveInfo ->
-        val appInfo = resolveInfo.activityInfo.applicationInfo
+      val allApps = pm.getInstalledApplications(0)
+      allApps.mapNotNull { appInfo ->
         if (appInfo.flags and ApplicationInfo.FLAG_SYSTEM != 0) return@mapNotNull null
         if (appInfo.packageName == context.packageName) return@mapNotNull null
 
