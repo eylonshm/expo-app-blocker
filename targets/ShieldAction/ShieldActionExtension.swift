@@ -7,6 +7,12 @@ class ShieldActionExtension: ShieldActionDelegate {
   private let appGroupIdentifier = "APP_GROUP_PLACEHOLDER"
   private let pendingUnlockKey = "appBlocker.pendingUnlock.v1"
   private let pendingUnlockNotificationIdentifier = "expo.appblocker.pendingUnlock.local"
+  // Notification copy + behavior — configurable via plugin options so apps
+  // can localize without forking. Defaults preserve the original English
+  // copy and the icon attachment.
+  private let notificationTitle = "NOTIFICATION_TITLE_PLACEHOLDER"
+  private let notificationBody = "NOTIFICATION_BODY_PLACEHOLDER"
+  private let notificationAttachIcon = NOTIFICATION_ATTACH_ICON_PLACEHOLDER
 
   override func handle(action: ShieldAction, for application: ApplicationToken, completionHandler: @escaping (ShieldActionResponse) -> Void) {
     handleAction(action, completionHandler: completionHandler)
@@ -67,13 +73,15 @@ class ShieldActionExtension: ShieldActionDelegate {
     let center = UNUserNotificationCenter.current()
 
     let content = UNMutableNotificationContent()
-    content.title = "App Blocker"
-    content.body = "Tap to return to the app and complete the unlock challenge."
+    content.title = notificationTitle
+    content.body = notificationBody
     content.sound = .default
     content.userInfo = ["link": "/unlock"]
 
-    // Attach the app icon to the notification
-    if let iconURL = iconFileURL() {
+    // Attach the app icon to the notification only when the app opted in.
+    // When false the system app icon is the only icon shown — avoids the
+    // "duplicate icon" look on iOS notification banners.
+    if notificationAttachIcon, let iconURL = iconFileURL() {
       if let attachment = try? UNNotificationAttachment(identifier: "icon", url: iconURL, options: nil) {
         content.attachments = [attachment]
       }

@@ -11,6 +11,11 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
   private let shieldSubtitle = "SHIELD_SUBTITLE_PLACEHOLDER"
   private let shieldPrimaryButtonLabel = "SHIELD_PRIMARY_BUTTON_PLACEHOLDER"
   private let shieldSecondaryButtonLabel = "SHIELD_SECONDARY_BUTTON_PLACEHOLDER"
+  // Temporary-unlock state copy — shown briefly while ManagedSettings clears
+  // after a successful unlock. Configurable via plugin options.
+  private let shieldTempUnlockTitle = "SHIELD_TEMP_UNLOCK_TITLE_PLACEHOLDER"
+  private let shieldTempUnlockSubtitle = "SHIELD_TEMP_UNLOCK_SUBTITLE_PLACEHOLDER"
+  private let shieldTempUnlockButtonLabel = "SHIELD_TEMP_UNLOCK_BUTTON_PLACEHOLDER"
   private let shieldPrimaryButtonColor = UIColor(red: SHIELD_PRIMARY_R_PLACEHOLDER, green: SHIELD_PRIMARY_G_PLACEHOLDER, blue: SHIELD_PRIMARY_B_PLACEHOLDER, alpha: 1.0)
   private let shieldBackgroundColor: UIColor? = SHIELD_BG_COLOR_PLACEHOLDER
   private let shieldBlurStyle: UIBlurEffect.Style? = SHIELD_BLUR_STYLE_PLACEHOLDER
@@ -44,16 +49,18 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
         backgroundBlurStyle: shieldBlurStyle,
         backgroundColor: shieldBackgroundColor,
         icon: mascotIcon,
-        title: ShieldConfiguration.Label(text: "Almost there!", color: shieldTitleColor),
-        subtitle: ShieldConfiguration.Label(text: "Your free time is loading. Try again in a moment.", color: shieldSubtitleColor),
-        primaryButtonLabel: ShieldConfiguration.Label(text: "OK", color: .white),
+        title: ShieldConfiguration.Label(text: shieldTempUnlockTitle, color: shieldTitleColor),
+        subtitle: ShieldConfiguration.Label(text: shieldTempUnlockSubtitle, color: shieldSubtitleColor),
+        primaryButtonLabel: ShieldConfiguration.Label(text: shieldTempUnlockButtonLabel, color: .white),
         primaryButtonBackgroundColor: shieldPrimaryButtonColor,
         secondaryButtonLabel: nil
       )
     }
 
     let count = getBlockedAppCount()
-    let context = count > 1 ? " You have \(count) apps blocked." : ""
+    // The plugin replaces this placeholder with a Swift string literal
+    // containing `\(count)` interpolation, or `""` when the user opted out.
+    let context = count > 1 ? SHIELD_COUNT_SUFFIX_SWIFT_PLACEHOLDER : ""
     let subtitle = shieldSubtitle.replacingOccurrences(of: "{appName}", with: appName) + context
 
     let hasSecondary = !shieldSecondaryButtonLabel.isEmpty && shieldSecondaryButtonLabel != "none"

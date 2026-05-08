@@ -285,6 +285,49 @@ function withAppBlockerIOS(config, pluginConfig) {
       const blurRaw = shield.backgroundBlurStyle || (bgColorHex ? null : "systemThickMaterial");
       const blurSwift = blurRaw && blurStyleMap[blurRaw] ? blurStyleMap[blurRaw] : null;
 
+      // Notification config (shown when the user taps the Shield primary button).
+      // All copy is configurable so non-English apps can localize without forking.
+      const notification = pluginConfig?.ios?.notification || {};
+      const notificationTitle = notification.title || "App Blocker";
+      const notificationBody = notification.body || "Tap to return to the app and complete the unlock challenge.";
+      // attachIcon defaults to true to preserve current behavior; set to false
+      // to drop the duplicate icon attachment so only the system app icon shows.
+      const notificationAttachIcon = notification.attachIcon === false ? "false" : "true";
+
+      // Temporary-unlock state copy (shown when the user has just earned time
+      // and the Shield is briefly visible while ManagedSettings clears).
+      const tempUnlockTitle = shield.tempUnlockTitle || "Almost there!";
+      const tempUnlockSubtitle = shield.tempUnlockSubtitle || "Your free time is loading. Try again in a moment.";
+      const tempUnlockButtonLabel = shield.tempUnlockButtonLabel || "OK";
+
+      // "You have N apps blocked" suffix appended to the subtitle when more
+      // than one app is blocked. Set countSuffix to "" to drop it entirely,
+      // or to a localized template like " יש לך {count} אפליקציות חסומות.".
+      // Defaults preserve the legacy English suffix.
+      const countSuffixTemplate = shield.countSuffix !== undefined
+        ? shield.countSuffix
+        : " You have {count} apps blocked.";
+
+      // Swift string-literal escaping. Plugin substitutions land inside `"..."`
+      // literals so backslashes, quotes, and the Swift interpolation escape
+      // `\(` MUST all be escaped or the extension fails to compile.
+      function escapeSwiftString(s) {
+        return String(s)
+          .replace(/\\/g, "\\\\")
+          .replace(/"/g, '\\"')
+          .replace(/\n/g, "\\n")
+          .replace(/\r/g, "\\r");
+      }
+
+      // Render the count suffix template into a Swift expression. We use
+      // `\(count)` interpolation when the template includes `{count}` so the
+      // runtime value is substituted. Empty template → empty literal.
+      function renderCountSuffixSwift(template) {
+        if (!template) return '""';
+        const escaped = escapeSwiftString(template);
+        return `"${escaped.replace(/\{count\}/g, "\\(count)")}"`;
+      }
+
       // All placeholder replacements
       const replacements = {
         "APP_GROUP_PLACEHOLDER": appGroup,
@@ -292,6 +335,13 @@ function withAppBlockerIOS(config, pluginConfig) {
         "SHIELD_SUBTITLE_PLACEHOLDER": shield.subtitle || "{appName} is blocked.",
         "SHIELD_PRIMARY_BUTTON_PLACEHOLDER": shield.primaryButtonLabel || "Earn Free Time",
         "SHIELD_SECONDARY_BUTTON_PLACEHOLDER": shield.secondaryButtonLabel === null ? "none" : (shield.secondaryButtonLabel || "Not now"),
+        "SHIELD_TEMP_UNLOCK_TITLE_PLACEHOLDER": tempUnlockTitle,
+        "SHIELD_TEMP_UNLOCK_SUBTITLE_PLACEHOLDER": tempUnlockSubtitle,
+        "SHIELD_TEMP_UNLOCK_BUTTON_PLACEHOLDER": tempUnlockButtonLabel,
+        "SHIELD_COUNT_SUFFIX_SWIFT_PLACEHOLDER": renderCountSuffixSwift(countSuffixTemplate),
+        "NOTIFICATION_TITLE_PLACEHOLDER": notificationTitle,
+        "NOTIFICATION_BODY_PLACEHOLDER": notificationBody,
+        "NOTIFICATION_ATTACH_ICON_PLACEHOLDER": notificationAttachIcon,
         "SHIELD_PRIMARY_R_PLACEHOLDER": primaryColor.r,
         "SHIELD_PRIMARY_G_PLACEHOLDER": primaryColor.g,
         "SHIELD_PRIMARY_B_PLACEHOLDER": primaryColor.b,

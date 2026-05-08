@@ -226,6 +226,13 @@ No special setup required beyond what the config plugin handles automatically.
 | `ios.shield.backgroundColor` | `string\|null` | `null` | Solid background color (hex). e.g. `"#f6f6f6"` for light, `"#1a1a2e"` for dark |
 | `ios.shield.backgroundBlurStyle` | `string\|null` | `"systemThickMaterial"` | Blur style. See [Blur Styles](#blur-styles) for all options |
 | `ios.shield.icon` | `string` | SF Symbol | Path to custom shield icon PNG (e.g. `"./assets/shield-icon.png"`) |
+| `ios.shield.tempUnlockTitle` | `string` | `"Almost there!"` | Title shown briefly while ManagedSettings clears after a successful unlock |
+| `ios.shield.tempUnlockSubtitle` | `string` | `"Your free time is loading. Try again in a moment."` | Subtitle for the temporary-unlock state |
+| `ios.shield.tempUnlockButtonLabel` | `string` | `"OK"` | Button label for the temporary-unlock state |
+| `ios.shield.countSuffix` | `string` | `" You have {count} apps blocked."` | Appended to the subtitle when more than one app is blocked. `{count}` is replaced with the integer at runtime. Set to `""` to drop the suffix entirely. |
+| `ios.notification.title` | `string` | `"App Blocker"` | Title of the local notification fired when the user taps the Shield primary button. Set to a Hebrew/Arabic/etc. string to localize. |
+| `ios.notification.body` | `string` | `"Tap to return to the app and complete the unlock challenge."` | Body of the unlock notification |
+| `ios.notification.attachIcon` | `boolean` | `true` | Whether to attach the shield icon as a notification image. Set to `false` to avoid the duplicate-icon look on iOS notification banners (the system app icon is always shown either way). |
 | `android.notificationTitle` | `string` | `"App Blocked"` | Notification title |
 | `android.notificationText` | `string` | `"{appName} is blocked."` | Notification text |
 
