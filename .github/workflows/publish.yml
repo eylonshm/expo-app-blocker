@@ -19,8 +19,13 @@ jobs:
 
       - name: Determine version bump
         id: version
+        # Never inline `${{ github.event.head_commit.message }}` into the
+        # script body — GitHub Actions substitutes it BEFORE the shell runs,
+        # so backticks / parens / `${...}` / `{vars}` get evaluated as
+        # commands. Always pass via env: so it lands as a quoted string.
+        env:
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
         run: |
-          COMMIT_MSG="${{ github.event.head_commit.message }}"
           if echo "$COMMIT_MSG" | grep -qw "\[major\]"; then
             echo "bump=major" >> $GITHUB_OUTPUT
           elif echo "$COMMIT_MSG" | grep -qw "\[minor\]"; then
