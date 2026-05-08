@@ -144,6 +144,39 @@ function withAppBlockerAndroid(config, pluginConfig) {
     ]);
   }
 
+  // Copy the overlay icon (PNG) to `res/drawable/expo_app_blocker_overlay_icon.png`
+  // so `OverlayManager.kt` can resolve it via Resources.getIdentifier(...).
+  // The icon is rendered above the title in the SYSTEM_ALERT_WINDOW overlay.
+  // Path is resolved relative to the project root for consistency with the
+  // top-level `icon` config field.
+  const overlayIconRel = pluginConfig?.android?.overlay?.icon;
+  if (overlayIconRel) {
+    config = withDangerousMod(config, [
+      "android",
+      (config) => {
+        const platformRoot = config.modRequest.platformProjectRoot;
+        const projectRoot = config.modRequest.projectRoot;
+        const drawableDir = path.join(platformRoot, "app", "src", "main", "res", "drawable");
+        const iconSrc = path.isAbsolute(overlayIconRel)
+          ? overlayIconRel
+          : path.join(projectRoot, overlayIconRel);
+
+        if (!fs.existsSync(iconSrc)) {
+          throw new Error(
+            `[expo-app-blocker] android.overlay.icon points to a missing file: ${iconSrc}`,
+          );
+        }
+
+        if (!fs.existsSync(drawableDir)) {
+          fs.mkdirSync(drawableDir, { recursive: true });
+        }
+
+        fs.copyFileSync(iconSrc, path.join(drawableDir, "expo_app_blocker_overlay_icon.png"));
+        return config;
+      },
+    ]);
+  }
+
   return config;
 }
 

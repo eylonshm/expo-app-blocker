@@ -2,6 +2,7 @@ package expo.modules.appblocker
 
 import android.content.Context
 import android.content.Intent
+import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.Typeface
@@ -12,6 +13,7 @@ import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 
@@ -139,6 +141,25 @@ class OverlayManager(private val context: Context) {
       gravity = Gravity.CENTER
       setBackgroundColor(backgroundColor)
       setPadding(dp(32), dp(32), dp(32), dp(32))
+
+      // Optional brand icon — drawable named `expo_app_blocker_overlay_icon`
+      // is copied by the config plugin from `pluginConfig.android.overlay.icon`.
+      // Skip silently if missing so apps that don't ship one still get a clean overlay.
+      val iconResId = context.resources.getIdentifier(
+        "expo_app_blocker_overlay_icon",
+        "drawable",
+        context.packageName,
+      )
+      if (iconResId != 0) {
+        addView(ImageView(context).apply {
+          val bitmap = BitmapFactory.decodeResource(context.resources, iconResId)
+          if (bitmap != null) setImageBitmap(bitmap)
+          val size = dp(96)
+          layoutParams = LinearLayout.LayoutParams(size, size).apply {
+            bottomMargin = dp(20)
+          }
+        })
+      }
 
       addView(TextView(context).apply {
         text = overlayTitle
