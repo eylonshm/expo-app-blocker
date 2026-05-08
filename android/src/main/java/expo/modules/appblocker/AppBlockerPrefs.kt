@@ -18,6 +18,10 @@ object AppBlockerPrefs {
   private const val KEY_OVERLAY_ICON_SIZE = "overlay_icon_size"
   private const val KEY_OVERLAY_ICON_GAP = "overlay_icon_gap"
   private const val KEY_OVERLAY_TITLE_GAP = "overlay_title_gap"
+  private const val KEY_OVERLAY_SHOW_SPINNER = "overlay_show_spinner"
+  private const val KEY_OVERLAY_SPINNER_SIZE = "overlay_spinner_size"
+  private const val KEY_OVERLAY_SPINNER_GAP = "overlay_spinner_gap"
+  private const val KEY_OVERLAY_SPINNER_COLOR = "overlay_spinner_color"
   private const val KEY_NOTIFICATION_TITLE = "notification_title"
   private const val KEY_NOTIFICATION_TEXT = "notification_text"
 
@@ -54,6 +58,10 @@ object AppBlockerPrefs {
     overlayIconSize: Float?,
     overlayIconBottomMargin: Float?,
     overlayTitleBottomMargin: Float?,
+    overlayShowSpinner: Boolean?,
+    overlaySpinnerSize: Float?,
+    overlaySpinnerTopMargin: Float?,
+    overlaySpinnerColor: String?,
     notificationTitle: String?,
     notificationText: String?,
   ) {
@@ -63,6 +71,7 @@ object AppBlockerPrefs {
       .putString(KEY_OVERLAY_BG_COLOR, overlayBackgroundColor)
       .putString(KEY_OVERLAY_TITLE_COLOR, overlayTitleColor)
       .putString(KEY_OVERLAY_TEXT_COLOR, overlayTextColor)
+      .putString(KEY_OVERLAY_SPINNER_COLOR, overlaySpinnerColor)
       .putString(KEY_NOTIFICATION_TITLE, notificationTitle)
       .putString(KEY_NOTIFICATION_TEXT, notificationText)
     putNullableFloat(editor, KEY_OVERLAY_TITLE_FONT_SIZE, overlayTitleFontSize)
@@ -71,10 +80,17 @@ object AppBlockerPrefs {
     putNullableFloat(editor, KEY_OVERLAY_ICON_SIZE, overlayIconSize)
     putNullableFloat(editor, KEY_OVERLAY_ICON_GAP, overlayIconBottomMargin)
     putNullableFloat(editor, KEY_OVERLAY_TITLE_GAP, overlayTitleBottomMargin)
+    putNullableFloat(editor, KEY_OVERLAY_SPINNER_SIZE, overlaySpinnerSize)
+    putNullableFloat(editor, KEY_OVERLAY_SPINNER_GAP, overlaySpinnerTopMargin)
     if (overlayTitleBold != null) {
       editor.putBoolean(KEY_OVERLAY_TITLE_BOLD, overlayTitleBold)
     } else {
       editor.remove(KEY_OVERLAY_TITLE_BOLD)
+    }
+    if (overlayShowSpinner != null) {
+      editor.putBoolean(KEY_OVERLAY_SHOW_SPINNER, overlayShowSpinner)
+    } else {
+      editor.remove(KEY_OVERLAY_SHOW_SPINNER)
     }
     editor.apply()
   }
@@ -114,6 +130,18 @@ object AppBlockerPrefs {
 
   fun getOverlayTitleBottomMargin(context: Context): Float =
     getOverlayFloat(context, KEY_OVERLAY_TITLE_GAP, 12f)
+
+  fun getOverlayShowSpinner(context: Context): Boolean =
+    get(context).getBoolean(KEY_OVERLAY_SHOW_SPINNER, false)
+
+  fun getOverlaySpinnerSize(context: Context): Float =
+    getOverlayFloat(context, KEY_OVERLAY_SPINNER_SIZE, 32f)
+
+  fun getOverlaySpinnerTopMargin(context: Context): Float =
+    getOverlayFloat(context, KEY_OVERLAY_SPINNER_GAP, 24f)
+
+  fun getOverlaySpinnerColor(context: Context): String? =
+    get(context).getString(KEY_OVERLAY_SPINNER_COLOR, null)
 
   fun getNotificationTitle(context: Context): String =
     get(context).getString(KEY_NOTIFICATION_TITLE, null) ?: "App Blocked"

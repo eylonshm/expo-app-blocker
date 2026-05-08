@@ -15,6 +15,7 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.ProgressBar
 import android.widget.TextView
 
 class OverlayManager(private val context: Context) {
@@ -183,6 +184,25 @@ class OverlayManager(private val context: Context) {
         setTextSize(TypedValue.COMPLEX_UNIT_SP, textFontSize)
         gravity = Gravity.CENTER
       })
+
+      // Optional indeterminate spinner — gives the user a visual cue that
+      // the app is launching during the ~150–300ms gap between intercept
+      // detection and the deep-link landing.
+      if (AppBlockerPrefs.getOverlayShowSpinner(context)) {
+        val spinnerSize = dp(AppBlockerPrefs.getOverlaySpinnerSize(context))
+        val spinnerGap = dp(AppBlockerPrefs.getOverlaySpinnerTopMargin(context))
+        addView(ProgressBar(context).apply {
+          isIndeterminate = true
+          val tint = AppBlockerPrefs.getOverlaySpinnerColor(context)
+          if (tint != null) {
+            val parsed = parseColorOrNull(tint)
+            if (parsed != null) indeterminateTintList = android.content.res.ColorStateList.valueOf(parsed)
+          }
+          layoutParams = LinearLayout.LayoutParams(spinnerSize, spinnerSize).apply {
+            topMargin = spinnerGap
+          }
+        })
+      }
     }
   }
 
@@ -190,6 +210,12 @@ class OverlayManager(private val context: Context) {
     Color.parseColor(hex)
   } catch (_: IllegalArgumentException) {
     fallback
+  }
+
+  private fun parseColorOrNull(hex: String): Int? = try {
+    Color.parseColor(hex)
+  } catch (_: IllegalArgumentException) {
+    null
   }
 
   private fun buildLayoutParams(): WindowManager.LayoutParams {

@@ -84,6 +84,10 @@ class ExpoAppBlockerModule : Module() {
         overlayIconSize = numberOrNull("overlayIconSize"),
         overlayIconBottomMargin = numberOrNull("overlayIconBottomMargin"),
         overlayTitleBottomMargin = numberOrNull("overlayTitleBottomMargin"),
+        overlayShowSpinner = config["overlayShowSpinner"] as? Boolean,
+        overlaySpinnerSize = numberOrNull("overlaySpinnerSize"),
+        overlaySpinnerTopMargin = numberOrNull("overlaySpinnerTopMargin"),
+        overlaySpinnerColor = config["overlaySpinnerColor"] as? String,
         notificationTitle = config["notificationTitle"] as? String,
         notificationText = config["notificationText"] as? String,
       )

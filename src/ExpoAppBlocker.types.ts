@@ -173,6 +173,14 @@ export interface AndroidConfig {
   overlayIconBottomMargin?: number;
   /** Vertical gap (dp) between the title and the body text. Default: 12. */
   overlayTitleBottomMargin?: number;
+  /** Show an indeterminate circular spinner under the body text. Useful as a "launching…" cue during the brief gap between intercept and the deep-link landing. Default: false. */
+  overlayShowSpinner?: boolean;
+  /** Spinner edge length in dp (square). Default: 32. */
+  overlaySpinnerSize?: number;
+  /** Vertical gap (dp) between the body text and the spinner. Default: 24. */
+  overlaySpinnerTopMargin?: number;
+  /** Hex color (e.g. "#7cb518") tinting the spinner. Default: system primary. */
+  overlaySpinnerColor?: string;
   /** Notification title when app is blocked. Use {appName} as placeholder. Default: "App Blocked" */
   notificationTitle?: string;
   /** Notification text when app is blocked. Use {appName} as placeholder. */

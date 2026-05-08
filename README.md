@@ -255,6 +255,10 @@ The `SYSTEM_ALERT_WINDOW` overlay flashed on top of a blocked app is fully theme
 | `overlayIconSize` | `number` (dp) | `96` | Square icon edge length. Only renders when `android.overlay.icon` was declared in the plugin config (build-time). |
 | `overlayIconBottomMargin` | `number` (dp) | `20` | Vertical gap between the icon and the title. |
 | `overlayTitleBottomMargin` | `number` (dp) | `12` | Vertical gap between the title and the body text. |
+| `overlayShowSpinner` | `boolean` | `false` | Render an indeterminate Material circular spinner below the body text — same shape RN's `<ActivityIndicator>` produces. Useful as a "launching…" cue during the brief gap between intercept and the deep-link landing. |
+| `overlaySpinnerSize` | `number` (dp) | `32` | Spinner edge length (square). Only used when `overlayShowSpinner` is true. |
+| `overlaySpinnerTopMargin` | `number` (dp) | `24` | Vertical gap between the body text and the spinner. |
+| `overlaySpinnerColor` | `string` (hex) | system primary | Tints the spinner. Useful to match your brand color. |
 | `notificationTitle` | `string` | `"App Blocked"` | Foreground-service notification title. |
 | `notificationText` | `string` | `"{appName} is blocked. Tap to manage."` | Foreground-service notification body. |
 
