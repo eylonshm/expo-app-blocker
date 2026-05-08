@@ -235,6 +235,53 @@ No special setup required beyond what the config plugin handles automatically.
 | `ios.notification.attachIcon` | `boolean` | `true` | Whether to attach the shield icon as a notification image. Set to `false` to avoid the duplicate-icon look on iOS notification banners (the system app icon is always shown either way). |
 | `android.notificationTitle` | `string` | `"App Blocked"` | Notification title |
 | `android.notificationText` | `string` | `"{appName} is blocked."` | Notification text |
+| `android.overlay.icon` | `string` | — | Path to the brand icon shown above the title in the `SYSTEM_ALERT_WINDOW` overlay. Resolved relative to the project root. PNG with transparent background recommended. Build-time only — not adjustable at runtime. |
+
+### Android Overlay (runtime configurable via `setAndroidConfig`)
+
+The `SYSTEM_ALERT_WINDOW` overlay flashed on top of a blocked app is fully themeable. All fields below are optional — defaults preserve the previous "App Blocked" + grey-on-white look. Pass them as a single object to `ExpoAppBlocker.setAndroidConfig({ ... })` once at app boot:
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `overlayTitle` | `string` | `"App Blocked"` | Bold heading. `{appName}` is replaced with the localized app name (e.g. `"Instagram is blocked"`). |
+| `overlayText` | `string` | `"{appName} is blocked."` | Body line under the title. `{appName}` placeholder supported. |
+| `overlayBackgroundColor` | `string` (hex) | `"#FFFFFF"` | Solid background color for the full-screen overlay. |
+| `overlayTitleColor` | `string` (hex) | `"#111111"` | Title text color. |
+| `overlayTextColor` | `string` (hex) | `"#737373"` | Body text color. |
+| `overlayTitleFontSize` | `number` (sp) | `24` | Title font size. Android `sp` units — scales with system font setting. |
+| `overlayTextFontSize` | `number` (sp) | `16` | Body font size. |
+| `overlayTitleBold` | `boolean` | `true` | Render the title with `Typeface.BOLD`. Set to `false` for a regular weight. |
+| `overlayPadding` | `number` (dp) | `32` | Inner padding on all four sides of the overlay's `LinearLayout`. |
+| `overlayIconSize` | `number` (dp) | `96` | Square icon edge length. Only renders when `android.overlay.icon` was declared in the plugin config (build-time). |
+| `overlayIconBottomMargin` | `number` (dp) | `20` | Vertical gap between the icon and the title. |
+| `overlayTitleBottomMargin` | `number` (dp) | `12` | Vertical gap between the title and the body text. |
+| `notificationTitle` | `string` | `"App Blocked"` | Foreground-service notification title. |
+| `notificationText` | `string` | `"{appName} is blocked. Tap to manage."` | Foreground-service notification body. |
+
+Example (matches a Hebrew RTL app with brand colors + a logo above the title):
+
+```ts
+import * as ExpoAppBlocker from 'expo-app-blocker';
+
+ExpoAppBlocker.setAndroidConfig({
+  overlayTitle: 'האפליקציה חסומה',
+  overlayText: 'ענה על כמה שאלות כדי להשתמש בה',
+  overlayBackgroundColor: '#f6f6f6',
+  overlayTitleColor: '#111111',
+  overlayTextColor: '#888888',
+  overlayTitleFontSize: 26,
+  overlayTextFontSize: 16,
+  overlayTitleBold: true,
+  overlayPadding: 32,
+  overlayIconSize: 112,
+  overlayIconBottomMargin: 20,
+  overlayTitleBottomMargin: 12,
+  notificationTitle: 'גרנדמייזר',
+  notificationText: 'ענה על השאלות כדי לפתוח את האפליקציה',
+});
+```
+
+**Why two layers?** `android.overlay.icon` is build-time because Android resolves drawable resources by ID, which requires the bitmap to be packed into the APK. Everything else (text, colors, sizes) lives in `SharedPreferences` and can be updated by your JS at any time — no rebuild required.
 
 ### Blur Styles
 

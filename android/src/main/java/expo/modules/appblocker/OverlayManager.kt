@@ -117,7 +117,7 @@ class OverlayManager(private val context: Context) {
 
   private fun buildOverlayView(appName: String): View {
     val density = context.resources.displayMetrics.density
-    fun dp(value: Int) = (value * density).toInt()
+    fun dp(value: Float) = (value * density).toInt()
 
     val overlayTitle = AppBlockerPrefs.getOverlayTitle(context)
       .replace("{appName}", appName)
@@ -135,12 +135,19 @@ class OverlayManager(private val context: Context) {
       AppBlockerPrefs.getOverlayTextColor(context),
       Color.parseColor("#737373"),
     )
+    val titleFontSize = AppBlockerPrefs.getOverlayTitleFontSize(context)
+    val textFontSize = AppBlockerPrefs.getOverlayTextFontSize(context)
+    val titleBold = AppBlockerPrefs.getOverlayTitleBold(context)
+    val padding = AppBlockerPrefs.getOverlayPadding(context)
+    val iconSize = AppBlockerPrefs.getOverlayIconSize(context)
+    val iconGap = AppBlockerPrefs.getOverlayIconBottomMargin(context)
+    val titleGap = AppBlockerPrefs.getOverlayTitleBottomMargin(context)
 
     return LinearLayout(context).apply {
       orientation = LinearLayout.VERTICAL
       gravity = Gravity.CENTER
       setBackgroundColor(backgroundColor)
-      setPadding(dp(32), dp(32), dp(32), dp(32))
+      setPadding(dp(padding), dp(padding), dp(padding), dp(padding))
 
       // Optional brand icon — drawable named `expo_app_blocker_overlay_icon`
       // is copied by the config plugin from `pluginConfig.android.overlay.icon`.
@@ -154,9 +161,9 @@ class OverlayManager(private val context: Context) {
         addView(ImageView(context).apply {
           val bitmap = BitmapFactory.decodeResource(context.resources, iconResId)
           if (bitmap != null) setImageBitmap(bitmap)
-          val size = dp(96)
+          val size = dp(iconSize)
           layoutParams = LinearLayout.LayoutParams(size, size).apply {
-            bottomMargin = dp(20)
+            bottomMargin = dp(iconGap)
           }
         })
       }
@@ -164,16 +171,16 @@ class OverlayManager(private val context: Context) {
       addView(TextView(context).apply {
         text = overlayTitle
         setTextColor(titleColor)
-        setTextSize(TypedValue.COMPLEX_UNIT_SP, 24f)
-        setTypeface(typeface, Typeface.BOLD)
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, titleFontSize)
+        if (titleBold) setTypeface(typeface, Typeface.BOLD)
         gravity = Gravity.CENTER
-        setPadding(0, 0, 0, dp(12))
+        setPadding(0, 0, 0, dp(titleGap))
       })
 
       addView(TextView(context).apply {
         text = overlayText
         setTextColor(textColor)
-        setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, textFontSize)
         gravity = Gravity.CENTER
       })
     }

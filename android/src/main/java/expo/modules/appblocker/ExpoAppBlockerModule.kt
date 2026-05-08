@@ -66,6 +66,10 @@ class ExpoAppBlockerModule : Module() {
     }
 
     Function("setAndroidConfig") { config: Map<String, Any?> ->
+      // JS sends numbers as Double over the bridge — coerce to Float so prefs
+      // keep a consistent type. Booleans are forwarded as-is.
+      fun numberOrNull(key: String): Float? = (config[key] as? Number)?.toFloat()
+
       AppBlockerPrefs.setAndroidConfig(
         context,
         overlayTitle = config["overlayTitle"] as? String,
@@ -73,6 +77,13 @@ class ExpoAppBlockerModule : Module() {
         overlayBackgroundColor = config["overlayBackgroundColor"] as? String,
         overlayTitleColor = config["overlayTitleColor"] as? String,
         overlayTextColor = config["overlayTextColor"] as? String,
+        overlayTitleFontSize = numberOrNull("overlayTitleFontSize"),
+        overlayTextFontSize = numberOrNull("overlayTextFontSize"),
+        overlayTitleBold = config["overlayTitleBold"] as? Boolean,
+        overlayPadding = numberOrNull("overlayPadding"),
+        overlayIconSize = numberOrNull("overlayIconSize"),
+        overlayIconBottomMargin = numberOrNull("overlayIconBottomMargin"),
+        overlayTitleBottomMargin = numberOrNull("overlayTitleBottomMargin"),
         notificationTitle = config["notificationTitle"] as? String,
         notificationText = config["notificationText"] as? String,
       )

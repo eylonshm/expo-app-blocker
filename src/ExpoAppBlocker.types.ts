@@ -159,6 +159,20 @@ export interface AndroidConfig {
   overlayTitleColor?: string;
   /** Hex color (e.g. "#737373") for the overlay body text. Default: "#737373". */
   overlayTextColor?: string;
+  /** Title font size in sp. Default: 24. */
+  overlayTitleFontSize?: number;
+  /** Body font size in sp. Default: 16. */
+  overlayTextFontSize?: number;
+  /** Render the title in bold. Default: true. */
+  overlayTitleBold?: boolean;
+  /** Inner padding (all sides) in dp. Default: 32. */
+  overlayPadding?: number;
+  /** Icon edge length in dp (square). Default: 96. Only used when an overlay icon is configured via the plugin. */
+  overlayIconSize?: number;
+  /** Vertical gap (dp) between the icon and the title. Default: 20. */
+  overlayIconBottomMargin?: number;
+  /** Vertical gap (dp) between the title and the body text. Default: 12. */
+  overlayTitleBottomMargin?: number;
   /** Notification title when app is blocked. Use {appName} as placeholder. Default: "App Blocked" */
   notificationTitle?: string;
   /** Notification text when app is blocked. Use {appName} as placeholder. */
