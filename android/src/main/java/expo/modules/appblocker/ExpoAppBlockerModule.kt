@@ -68,7 +68,11 @@ class ExpoAppBlockerModule : Module() {
     Function("setAndroidConfig") { config: Map<String, Any?> ->
       AppBlockerPrefs.setAndroidConfig(
         context,
+        overlayTitle = config["overlayTitle"] as? String,
         overlayText = config["overlayText"] as? String,
+        overlayBackgroundColor = config["overlayBackgroundColor"] as? String,
+        overlayTitleColor = config["overlayTitleColor"] as? String,
+        overlayTextColor = config["overlayTextColor"] as? String,
         notificationTitle = config["notificationTitle"] as? String,
         notificationText = config["notificationText"] as? String,
       )

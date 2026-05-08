@@ -149,8 +149,16 @@ export interface ShieldConfig {
 }
 
 export interface AndroidConfig {
-  /** Text shown on the blocking overlay. Use {appName} as placeholder. Default: "{appName} is blocked." */
+  /** Bold title rendered on the blocking overlay. Use {appName} as placeholder. Default: "App Blocked" */
+  overlayTitle?: string;
+  /** Body text shown under the overlay title. Use {appName} as placeholder. Default: "{appName} is blocked." */
   overlayText?: string;
+  /** Hex color (e.g. "#f6f6f6") for the overlay background. Default: "#FFFFFF". */
+  overlayBackgroundColor?: string;
+  /** Hex color (e.g. "#111111") for the overlay title text. Default: "#111111". */
+  overlayTitleColor?: string;
+  /** Hex color (e.g. "#737373") for the overlay body text. Default: "#737373". */
+  overlayTextColor?: string;
   /** Notification title when app is blocked. Use {appName} as placeholder. Default: "App Blocked" */
   notificationTitle?: string;
   /** Notification text when app is blocked. Use {appName} as placeholder. */

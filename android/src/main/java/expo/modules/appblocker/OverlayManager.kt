@@ -117,18 +117,32 @@ class OverlayManager(private val context: Context) {
     val density = context.resources.displayMetrics.density
     fun dp(value: Int) = (value * density).toInt()
 
+    val overlayTitle = AppBlockerPrefs.getOverlayTitle(context)
+      .replace("{appName}", appName)
     val overlayText = AppBlockerPrefs.getOverlayText(context)
       .replace("{appName}", appName)
+    val backgroundColor = parseColorOrDefault(
+      AppBlockerPrefs.getOverlayBackgroundColor(context),
+      Color.WHITE,
+    )
+    val titleColor = parseColorOrDefault(
+      AppBlockerPrefs.getOverlayTitleColor(context),
+      Color.parseColor("#111111"),
+    )
+    val textColor = parseColorOrDefault(
+      AppBlockerPrefs.getOverlayTextColor(context),
+      Color.parseColor("#737373"),
+    )
 
     return LinearLayout(context).apply {
       orientation = LinearLayout.VERTICAL
       gravity = Gravity.CENTER
-      setBackgroundColor(Color.WHITE)
+      setBackgroundColor(backgroundColor)
       setPadding(dp(32), dp(32), dp(32), dp(32))
 
       addView(TextView(context).apply {
-        text = "App Blocked"
-        setTextColor(Color.parseColor("#111111"))
+        text = overlayTitle
+        setTextColor(titleColor)
         setTextSize(TypedValue.COMPLEX_UNIT_SP, 24f)
         setTypeface(typeface, Typeface.BOLD)
         gravity = Gravity.CENTER
@@ -137,11 +151,17 @@ class OverlayManager(private val context: Context) {
 
       addView(TextView(context).apply {
         text = overlayText
-        setTextColor(Color.parseColor("#737373"))
+        setTextColor(textColor)
         setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
         gravity = Gravity.CENTER
       })
     }
+  }
+
+  private fun parseColorOrDefault(hex: String, fallback: Int): Int = try {
+    Color.parseColor(hex)
+  } catch (_: IllegalArgumentException) {
+    fallback
   }
 
   private fun buildLayoutParams(): WindowManager.LayoutParams {
