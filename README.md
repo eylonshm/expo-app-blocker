@@ -86,13 +86,22 @@ npx expo install expo-app-blocker
 
 ### 2. Configure `app.json`
 
+> **Three things are required on iOS** and skipping any of them produces a cryptic build failure:
+> 1. `ios.appleTeamId` — `@bacons/apple-targets` refuses to add the extension targets without it.
+> 2. `ios.entitlements` with **Family Controls + the App Group** — the extension `expo-target.config.js` files read `ios.entitlements['com.apple.security.application-groups'][0]` to learn which App Group to embed. If it's missing they fall back to `group.expo.app-blocker` and the build fails with `An Application Group with Identifier 'group.expo.app-blocker' is not available`.
+> 3. `@bacons/apple-targets` must appear in the `plugins` array **after** `expo-app-blocker`. The targets only get added to the Xcode project when this plugin runs.
+
 ```json
 {
   "expo": {
     "scheme": "myapp",
     "ios": {
       "bundleIdentifier": "com.yourapp.id",
-      "appleTeamId": "YOUR_TEAM_ID"
+      "appleTeamId": "YOUR_TEAM_ID",
+      "entitlements": {
+        "com.apple.developer.family-controls": true,
+        "com.apple.security.application-groups": ["group.com.yourapp.blocker"]
+      }
     },
     "plugins": [
       ["expo-app-blocker", {
@@ -107,11 +116,14 @@ npx expo install expo-app-blocker
             "backgroundBlurStyle": "systemThickMaterialLight"
           }
         }
-      }]
+      }],
+      "@bacons/apple-targets"
     ]
   }
 }
 ```
+
+> The App Group identifier in `ios.entitlements` and `expo-app-blocker.ios.appGroup` **must match** — they describe the same shared-storage container for the main app and the three extensions.
 
 ### 3. Use in your app
 
