@@ -15,6 +15,32 @@ const fs = require("fs");
 const path = require("path");
 
 // ──────────────────────────────────────────────────────────────────────────────
+// Privacy manifest helper
+// ──────────────────────────────────────────────────────────────────────────────
+
+// Merges expo-app-blocker's required UserDefaults entry into config.ios.privacyManifests
+// so Expo's built-in withPrivacyInfo plugin writes it to PrivacyInfo.xcprivacy on prebuild.
+// Required for App Store submission: the blocker uses UserDefaults extensively for
+// AppGroup state sharing between the main app and Shield/DeviceActivityMonitor extensions.
+function mergeBlockerPrivacyManifest(config) {
+  const ios = config.ios ?? {};
+  const privacyManifests = ios.privacyManifests ?? {};
+  const apiTypes = [...(privacyManifests.NSPrivacyAccessedAPITypes ?? [])];
+  const TYPE = "NSPrivacyAccessedAPICategoryUserDefaults";
+  const REASON = "CA92.1";
+  const existing = apiTypes.find((t) => t.NSPrivacyAccessedAPIType === TYPE);
+  if (!existing) {
+    apiTypes.push({ NSPrivacyAccessedAPIType: TYPE, NSPrivacyAccessedAPITypeReasons: [REASON] });
+  } else if (!existing.NSPrivacyAccessedAPITypeReasons.includes(REASON)) {
+    existing.NSPrivacyAccessedAPITypeReasons = [...existing.NSPrivacyAccessedAPITypeReasons, REASON];
+  }
+  return {
+    ...config,
+    ios: { ...ios, privacyManifests: { ...privacyManifests, NSPrivacyAccessedAPITypes: apiTypes } },
+  };
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
 // Android
 // ──────────────────────────────────────────────────────────────────────────────
 
@@ -185,6 +211,8 @@ function withAppBlockerAndroid(config, pluginConfig) {
 // ──────────────────────────────────────────────────────────────────────────────
 
 function withAppBlockerIOS(config, pluginConfig) {
+  config = mergeBlockerPrivacyManifest(config);
+
   const bundleId = config.ios?.bundleIdentifier || "expo.app-blocker";
   const appGroup = pluginConfig?.ios?.appGroup || `group.${bundleId}`;
 
