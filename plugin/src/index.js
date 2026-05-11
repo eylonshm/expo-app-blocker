@@ -232,13 +232,19 @@ function withAppBlockerIOS(config, pluginConfig) {
   // Populate `targets/` synchronously at config-eval time so the
   // `@bacons/apple-targets` plugin (registered just below) can glob the
   // directory and register the Shield/DeviceActivityMonitor/ShieldConfiguration
-  // extensions on the first prebuild. Done synchronously because @bacons globs
-  // during config evaluation, before any withDangerousMod queued by this plugin
-  // would run.
+  // extensions on the first prebuild. We also run placeholder substitution and
+  // copy the shield icon here, not in a later withDangerousMod, so the on-disk
+  // state matches the plugin config after every config evaluation — not just
+  // during `expo prebuild`. Otherwise non-prebuild config loads (EAS env probe,
+  // autolinking, doctor) would re-copy the placeholder templates over the
+  // substituted Swift files and leave the tree in a broken state.
   const projectRoot = config._internal?.projectRoot;
   if (projectRoot) {
     const targetsDir = path.join(projectRoot, "targets");
     const packageTargetsDir = path.resolve(__dirname, "..", "..", "targets");
+
+    // 1. Copy template Swift files + expo-target.config.js from this package
+    //    into the consumer's `targets/`. Preserves any user-managed assets.
     if (fs.existsSync(packageTargetsDir)) {
       for (const dir of fs.readdirSync(packageTargetsDir)) {
         const srcDir = path.join(packageTargetsDir, dir);
@@ -249,6 +255,140 @@ function withAppBlockerIOS(config, pluginConfig) {
           if (file.endsWith(".swift") || file === "expo-target.config.js") {
             fs.copyFileSync(path.join(srcDir, file), path.join(destDir, file));
           }
+        }
+      }
+    }
+
+    // 2. Substitute placeholders in the freshly-copied Swift files. The
+    //    substitution map mirrors the original withDangerousMod block — kept
+    //    here so config-eval produces final, build-ready Swift in one pass.
+    function hexToRgb(hex) {
+      const h = hex.replace("#", "");
+      return {
+        r: (parseInt(h.substring(0, 2), 16) / 255).toFixed(3),
+        g: (parseInt(h.substring(2, 4), 16) / 255).toFixed(3),
+        b: (parseInt(h.substring(4, 6), 16) / 255).toFixed(3),
+      };
+    }
+
+    const shield = pluginConfig?.ios?.shield || {};
+    const primaryColor = hexToRgb(shield.primaryButtonColor || "#fb6107");
+    const titleColor = hexToRgb(shield.titleColor || "#111111");
+    const subtitleColor = hexToRgb(shield.subtitleColor || "#737373");
+    const bgColorHex = shield.backgroundColor || null;
+    const bgColor = bgColorHex ? hexToRgb(bgColorHex) : null;
+
+    const blurStyleMap = {
+      "systemUltraThinMaterial": ".systemUltraThinMaterial",
+      "systemThinMaterial": ".systemThinMaterial",
+      "systemMaterial": ".systemMaterial",
+      "systemThickMaterial": ".systemThickMaterial",
+      "systemChromeMaterial": ".systemChromeMaterial",
+      "systemUltraThinMaterialLight": ".systemUltraThinMaterialLight",
+      "systemThinMaterialLight": ".systemThinMaterialLight",
+      "systemMaterialLight": ".systemMaterialLight",
+      "systemThickMaterialLight": ".systemThickMaterialLight",
+      "systemChromeMaterialLight": ".systemChromeMaterialLight",
+      "systemUltraThinMaterialDark": ".systemUltraThinMaterialDark",
+      "systemThinMaterialDark": ".systemThinMaterialDark",
+      "systemMaterialDark": ".systemMaterialDark",
+      "systemThickMaterialDark": ".systemThickMaterialDark",
+      "systemChromeMaterialDark": ".systemChromeMaterialDark",
+      "regular": ".regular",
+      "prominent": ".prominent",
+      "light": ".light",
+      "dark": ".dark",
+      "extraLight": ".extraLight",
+    };
+    const blurRaw = shield.backgroundBlurStyle || (bgColorHex ? null : "systemThickMaterial");
+    const blurSwift = blurRaw && blurStyleMap[blurRaw] ? blurStyleMap[blurRaw] : null;
+
+    const notification = pluginConfig?.ios?.notification || {};
+    const notificationTitle = notification.title || "App Blocker";
+    const notificationBody = notification.body || "Tap to return to the app and complete the unlock challenge.";
+    const notificationAttachIcon = notification.attachIcon === false ? "false" : "true";
+
+    const tempUnlockTitle = shield.tempUnlockTitle || "Almost there!";
+    const tempUnlockSubtitle = shield.tempUnlockSubtitle || "Your free time is loading. Try again in a moment.";
+    const tempUnlockButtonLabel = shield.tempUnlockButtonLabel || "OK";
+
+    const countSuffixTemplate = shield.countSuffix !== undefined
+      ? shield.countSuffix
+      : " You have {count} apps blocked.";
+
+    // Swift string-literal escaping for plugin substitutions that land inside
+    // `"..."` literals. `\(` is the Swift interpolation escape; rendering it
+    // unescaped here is intentional — see renderCountSuffixSwift.
+    function escapeSwiftString(s) {
+      return String(s)
+        .replace(/\\/g, "\\\\")
+        .replace(/"/g, '\\"')
+        .replace(/\n/g, "\\n")
+        .replace(/\r/g, "\\r");
+    }
+    function renderCountSuffixSwift(template) {
+      if (!template) return '""';
+      const escaped = escapeSwiftString(template);
+      return `"${escaped.replace(/\{count\}/g, "\\(count)")}"`;
+    }
+
+    const replacements = {
+      "APP_GROUP_PLACEHOLDER": appGroup,
+      "SHIELD_TITLE_PLACEHOLDER": shield.title || "Hold on!",
+      "SHIELD_SUBTITLE_PLACEHOLDER": shield.subtitle || "{appName} is blocked.",
+      "SHIELD_PRIMARY_BUTTON_PLACEHOLDER": shield.primaryButtonLabel || "Earn Free Time",
+      "SHIELD_SECONDARY_BUTTON_PLACEHOLDER": shield.secondaryButtonLabel === null ? "none" : (shield.secondaryButtonLabel || "Not now"),
+      "SHIELD_TEMP_UNLOCK_TITLE_PLACEHOLDER": tempUnlockTitle,
+      "SHIELD_TEMP_UNLOCK_SUBTITLE_PLACEHOLDER": tempUnlockSubtitle,
+      "SHIELD_TEMP_UNLOCK_BUTTON_PLACEHOLDER": tempUnlockButtonLabel,
+      "SHIELD_COUNT_SUFFIX_SWIFT_PLACEHOLDER": renderCountSuffixSwift(countSuffixTemplate),
+      "NOTIFICATION_TITLE_PLACEHOLDER": notificationTitle,
+      "NOTIFICATION_BODY_PLACEHOLDER": notificationBody,
+      "NOTIFICATION_ATTACH_ICON_PLACEHOLDER": notificationAttachIcon,
+      "SHIELD_PRIMARY_R_PLACEHOLDER": primaryColor.r,
+      "SHIELD_PRIMARY_G_PLACEHOLDER": primaryColor.g,
+      "SHIELD_PRIMARY_B_PLACEHOLDER": primaryColor.b,
+      "SHIELD_TITLE_R_PLACEHOLDER": titleColor.r,
+      "SHIELD_TITLE_G_PLACEHOLDER": titleColor.g,
+      "SHIELD_TITLE_B_PLACEHOLDER": titleColor.b,
+      "SHIELD_SUBTITLE_R_PLACEHOLDER": subtitleColor.r,
+      "SHIELD_SUBTITLE_G_PLACEHOLDER": subtitleColor.g,
+      "SHIELD_SUBTITLE_B_PLACEHOLDER": subtitleColor.b,
+      "SHIELD_BG_COLOR_PLACEHOLDER": bgColor
+        ? `UIColor(red: ${bgColor.r}, green: ${bgColor.g}, blue: ${bgColor.b}, alpha: 1.0)`
+        : "nil",
+      "SHIELD_BLUR_STYLE_PLACEHOLDER": blurSwift || "nil",
+    };
+
+    if (fs.existsSync(targetsDir)) {
+      for (const dir of fs.readdirSync(targetsDir)) {
+        const dirPath = path.join(targetsDir, dir);
+        if (!fs.statSync(dirPath).isDirectory()) continue;
+        for (const file of fs.readdirSync(dirPath)) {
+          if (!file.endsWith(".swift")) continue;
+          const filePath = path.join(dirPath, file);
+          let content = fs.readFileSync(filePath, "utf-8");
+          for (const [key, value] of Object.entries(replacements)) {
+            content = content.replace(new RegExp(key, "g"), value);
+          }
+          fs.writeFileSync(filePath, content);
+        }
+      }
+    }
+
+    // 3. Copy shield icon into ShieldConfiguration + ShieldAction target assets.
+    const shieldIcon = pluginConfig?.ios?.shield?.icon;
+    if (shieldIcon) {
+      const iconSrc = path.isAbsolute(shieldIcon)
+        ? shieldIcon
+        : path.resolve(projectRoot, shieldIcon);
+      if (fs.existsSync(iconSrc)) {
+        for (const target of ["ShieldConfiguration", "ShieldAction"]) {
+          const assetsDir = path.join(targetsDir, target, "assets");
+          if (!fs.existsSync(assetsDir)) {
+            fs.mkdirSync(assetsDir, { recursive: true });
+          }
+          fs.copyFileSync(iconSrc, path.join(assetsDir, "shield-icon.png"));
         }
       }
     }
@@ -311,162 +451,9 @@ function withAppBlockerIOS(config, pluginConfig) {
         }
       }
 
-      // Templates were copied to `targets/` at config-eval time (see
-      // withAppBlockerIOS). This block only resolves the directory for the
-      // placeholder-substitution and shield-icon-copy steps below.
-      const targetsDir = path.join(path.dirname(platformRoot), "targets");
-
-      // Helper: hex to RGB floats
-      function hexToRgb(hex) {
-        const h = hex.replace("#", "");
-        return {
-          r: (parseInt(h.substring(0, 2), 16) / 255).toFixed(3),
-          g: (parseInt(h.substring(2, 4), 16) / 255).toFixed(3),
-          b: (parseInt(h.substring(4, 6), 16) / 255).toFixed(3),
-        };
-      }
-
-      // Shield config defaults
-      const shield = pluginConfig?.ios?.shield || {};
-      const primaryColor = hexToRgb(shield.primaryButtonColor || "#fb6107");
-      const titleColor = hexToRgb(shield.titleColor || "#111111");
-      const subtitleColor = hexToRgb(shield.subtitleColor || "#737373");
-      // Background color (solid) - separate from blur
-      const bgColorHex = shield.backgroundColor || null;
-      const bgColor = bgColorHex ? hexToRgb(bgColorHex) : null;
-
-      // Blur style mapping
-      const blurStyleMap = {
-        "systemUltraThinMaterial": ".systemUltraThinMaterial",
-        "systemThinMaterial": ".systemThinMaterial",
-        "systemMaterial": ".systemMaterial",
-        "systemThickMaterial": ".systemThickMaterial",
-        "systemChromeMaterial": ".systemChromeMaterial",
-        "systemUltraThinMaterialLight": ".systemUltraThinMaterialLight",
-        "systemThinMaterialLight": ".systemThinMaterialLight",
-        "systemMaterialLight": ".systemMaterialLight",
-        "systemThickMaterialLight": ".systemThickMaterialLight",
-        "systemChromeMaterialLight": ".systemChromeMaterialLight",
-        "systemUltraThinMaterialDark": ".systemUltraThinMaterialDark",
-        "systemThinMaterialDark": ".systemThinMaterialDark",
-        "systemMaterialDark": ".systemMaterialDark",
-        "systemThickMaterialDark": ".systemThickMaterialDark",
-        "systemChromeMaterialDark": ".systemChromeMaterialDark",
-        "regular": ".regular",
-        "prominent": ".prominent",
-        "light": ".light",
-        "dark": ".dark",
-        "extraLight": ".extraLight",
-      };
-      const blurRaw = shield.backgroundBlurStyle || (bgColorHex ? null : "systemThickMaterial");
-      const blurSwift = blurRaw && blurStyleMap[blurRaw] ? blurStyleMap[blurRaw] : null;
-
-      // Notification config (shown when the user taps the Shield primary button).
-      // All copy is configurable so non-English apps can localize without forking.
-      const notification = pluginConfig?.ios?.notification || {};
-      const notificationTitle = notification.title || "App Blocker";
-      const notificationBody = notification.body || "Tap to return to the app and complete the unlock challenge.";
-      // attachIcon defaults to true to preserve current behavior; set to false
-      // to drop the duplicate icon attachment so only the system app icon shows.
-      const notificationAttachIcon = notification.attachIcon === false ? "false" : "true";
-
-      // Temporary-unlock state copy (shown when the user has just earned time
-      // and the Shield is briefly visible while ManagedSettings clears).
-      const tempUnlockTitle = shield.tempUnlockTitle || "Almost there!";
-      const tempUnlockSubtitle = shield.tempUnlockSubtitle || "Your free time is loading. Try again in a moment.";
-      const tempUnlockButtonLabel = shield.tempUnlockButtonLabel || "OK";
-
-      // "You have N apps blocked" suffix appended to the subtitle when more
-      // than one app is blocked. Set countSuffix to "" to drop it entirely,
-      // or to a localized template like " יש לך {count} אפליקציות חסומות.".
-      // Defaults preserve the legacy English suffix.
-      const countSuffixTemplate = shield.countSuffix !== undefined
-        ? shield.countSuffix
-        : " You have {count} apps blocked.";
-
-      // Swift string-literal escaping. Plugin substitutions land inside `"..."`
-      // literals so backslashes, quotes, and the Swift interpolation escape
-      // `\(` MUST all be escaped or the extension fails to compile.
-      function escapeSwiftString(s) {
-        return String(s)
-          .replace(/\\/g, "\\\\")
-          .replace(/"/g, '\\"')
-          .replace(/\n/g, "\\n")
-          .replace(/\r/g, "\\r");
-      }
-
-      // Render the count suffix template into a Swift expression. We use
-      // `\(count)` interpolation when the template includes `{count}` so the
-      // runtime value is substituted. Empty template → empty literal.
-      function renderCountSuffixSwift(template) {
-        if (!template) return '""';
-        const escaped = escapeSwiftString(template);
-        return `"${escaped.replace(/\{count\}/g, "\\(count)")}"`;
-      }
-
-      // All placeholder replacements
-      const replacements = {
-        "APP_GROUP_PLACEHOLDER": appGroup,
-        "SHIELD_TITLE_PLACEHOLDER": shield.title || "Hold on!",
-        "SHIELD_SUBTITLE_PLACEHOLDER": shield.subtitle || "{appName} is blocked.",
-        "SHIELD_PRIMARY_BUTTON_PLACEHOLDER": shield.primaryButtonLabel || "Earn Free Time",
-        "SHIELD_SECONDARY_BUTTON_PLACEHOLDER": shield.secondaryButtonLabel === null ? "none" : (shield.secondaryButtonLabel || "Not now"),
-        "SHIELD_TEMP_UNLOCK_TITLE_PLACEHOLDER": tempUnlockTitle,
-        "SHIELD_TEMP_UNLOCK_SUBTITLE_PLACEHOLDER": tempUnlockSubtitle,
-        "SHIELD_TEMP_UNLOCK_BUTTON_PLACEHOLDER": tempUnlockButtonLabel,
-        "SHIELD_COUNT_SUFFIX_SWIFT_PLACEHOLDER": renderCountSuffixSwift(countSuffixTemplate),
-        "NOTIFICATION_TITLE_PLACEHOLDER": notificationTitle,
-        "NOTIFICATION_BODY_PLACEHOLDER": notificationBody,
-        "NOTIFICATION_ATTACH_ICON_PLACEHOLDER": notificationAttachIcon,
-        "SHIELD_PRIMARY_R_PLACEHOLDER": primaryColor.r,
-        "SHIELD_PRIMARY_G_PLACEHOLDER": primaryColor.g,
-        "SHIELD_PRIMARY_B_PLACEHOLDER": primaryColor.b,
-        "SHIELD_TITLE_R_PLACEHOLDER": titleColor.r,
-        "SHIELD_TITLE_G_PLACEHOLDER": titleColor.g,
-        "SHIELD_TITLE_B_PLACEHOLDER": titleColor.b,
-        "SHIELD_SUBTITLE_R_PLACEHOLDER": subtitleColor.r,
-        "SHIELD_SUBTITLE_G_PLACEHOLDER": subtitleColor.g,
-        "SHIELD_SUBTITLE_B_PLACEHOLDER": subtitleColor.b,
-        "SHIELD_BG_COLOR_PLACEHOLDER": bgColor
-          ? `UIColor(red: ${bgColor.r}, green: ${bgColor.g}, blue: ${bgColor.b}, alpha: 1.0)`
-          : "nil",
-        "SHIELD_BLUR_STYLE_PLACEHOLDER": blurSwift || "nil",
-      };
-
-      // Inject all placeholders into extension Swift files
-      if (fs.existsSync(targetsDir)) {
-        const dirs = fs.readdirSync(targetsDir);
-        for (const dir of dirs) {
-          const dirPath = path.join(targetsDir, dir);
-          if (!fs.statSync(dirPath).isDirectory()) continue;
-          const files = fs.readdirSync(dirPath);
-          for (const file of files) {
-            if (!file.endsWith(".swift")) continue;
-            const filePath = path.join(dirPath, file);
-            let content = fs.readFileSync(filePath, "utf-8");
-            for (const [key, value] of Object.entries(replacements)) {
-              content = content.replace(new RegExp(key, "g"), value);
-            }
-            fs.writeFileSync(filePath, content);
-          }
-        }
-      }
-
-      // Copy shield icon to ShieldConfiguration and ShieldAction target assets
-      const shieldIcon = pluginConfig?.ios?.shield?.icon;
-      if (shieldIcon) {
-        const projectRoot = path.dirname(platformRoot);
-        const iconSrc = path.resolve(projectRoot, shieldIcon);
-        if (fs.existsSync(iconSrc)) {
-          for (const target of ["ShieldConfiguration", "ShieldAction"]) {
-            const assetsDir = path.join(targetsDir, target, "assets");
-            if (!fs.existsSync(assetsDir)) {
-              fs.mkdirSync(assetsDir, { recursive: true });
-            }
-            fs.copyFileSync(iconSrc, path.join(assetsDir, "shield-icon.png"));
-          }
-        }
-      }
+      // Target Swift files + shield icon are produced at config-eval time
+      // (see withAppBlockerIOS). The block below only handles `ios/` patches
+      // that depend on the prebuilt platform tree.
 
       return config;
     },
