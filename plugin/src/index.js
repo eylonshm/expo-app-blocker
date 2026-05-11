@@ -229,6 +229,46 @@ function withAppBlockerIOS(config, pluginConfig) {
     return config;
   });
 
+  // Populate `targets/` synchronously at config-eval time so the
+  // `@bacons/apple-targets` plugin (registered just below) can glob the
+  // directory and register the Shield/DeviceActivityMonitor/ShieldConfiguration
+  // extensions on the first prebuild. Done synchronously because @bacons globs
+  // during config evaluation, before any withDangerousMod queued by this plugin
+  // would run.
+  const projectRoot = config._internal?.projectRoot;
+  if (projectRoot) {
+    const targetsDir = path.join(projectRoot, "targets");
+    const packageTargetsDir = path.resolve(__dirname, "..", "..", "targets");
+    if (fs.existsSync(packageTargetsDir)) {
+      for (const dir of fs.readdirSync(packageTargetsDir)) {
+        const srcDir = path.join(packageTargetsDir, dir);
+        const destDir = path.join(targetsDir, dir);
+        if (!fs.statSync(srcDir).isDirectory()) continue;
+        if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
+        for (const file of fs.readdirSync(srcDir)) {
+          if (file.endsWith(".swift") || file === "expo-target.config.js") {
+            fs.copyFileSync(path.join(srcDir, file), path.join(destDir, file));
+          }
+        }
+      }
+    }
+  }
+
+  // Auto-register `@bacons/apple-targets` so users don't have to add it to
+  // their app.json plugins array. Resolved from this package's own
+  // node_modules (declared dep), which also makes it work in pnpm/yarn
+  // workspaces where transitive plugins aren't hoisted into the app root.
+  try {
+    const withTargetsDir = resolve("@bacons/apple-targets/app.plugin");
+    config = withTargetsDir(config, {});
+  } catch (err) {
+    throw new Error(
+      `[expo-app-blocker] Failed to load '@bacons/apple-targets'. In pnpm or ` +
+      `yarn-workspace monorepos, add it as a direct dependency of your app: ` +
+      `\`pnpm add @bacons/apple-targets\`. Original error: ${err.message}`
+    );
+  }
+
   config = withDangerousMod(config, [
     "ios",
     (config) => {
@@ -271,35 +311,10 @@ function withAppBlockerIOS(config, pluginConfig) {
         }
       }
 
-      // Copy fresh target templates from node_modules before replacing placeholders
+      // Templates were copied to `targets/` at config-eval time (see
+      // withAppBlockerIOS). This block only resolves the directory for the
+      // placeholder-substitution and shield-icon-copy steps below.
       const targetsDir = path.join(path.dirname(platformRoot), "targets");
-      const packageTargetsDir = path.resolve(__dirname, "..", "..", "targets");
-      if (fs.existsSync(packageTargetsDir)) {
-        function copyDirSync(src, dest) {
-          if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
-          for (const entry of fs.readdirSync(src)) {
-            const srcPath = path.join(src, entry);
-            const destPath = path.join(dest, entry);
-            if (fs.statSync(srcPath).isDirectory()) {
-              copyDirSync(srcPath, destPath);
-            } else {
-              fs.copyFileSync(srcPath, destPath);
-            }
-          }
-        }
-        // Only copy Swift files and config (preserve user's assets, generated entitlements, Info.plist)
-        for (const dir of fs.readdirSync(packageTargetsDir)) {
-          const srcDir = path.join(packageTargetsDir, dir);
-          const destDir = path.join(targetsDir, dir);
-          if (!fs.statSync(srcDir).isDirectory()) continue;
-          if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
-          for (const file of fs.readdirSync(srcDir)) {
-            if (file.endsWith(".swift") || file === "expo-target.config.js") {
-              fs.copyFileSync(path.join(srcDir, file), path.join(destDir, file));
-            }
-          }
-        }
-      }
 
       // Helper: hex to RGB floats
       function hexToRgb(hex) {
