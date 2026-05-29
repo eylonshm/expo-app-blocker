@@ -169,8 +169,9 @@ export function isAppBlocked(bundleIdentifier: string): boolean {
 // ──────────────────────────────────────────────────────────────────────────────
 
 export async function temporaryUnlock(durationMinutes: number = 15): Promise<TemporaryUnlockResult> {
-  if (Platform.OS !== "ios") {
-    throw new Error("Temporary unlock is only available on iOS");
+  if (Platform.OS === "android") {
+    NativeModule.temporaryUnlockAndroid(Math.max(1, Math.round(durationMinutes)));
+    return { unlocked: true, expiresAt: Date.now() + durationMinutes * 60_000 };
   }
   return NativeModule.temporaryUnlock(durationMinutes);
 }

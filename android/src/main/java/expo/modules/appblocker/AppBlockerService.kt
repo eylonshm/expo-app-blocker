@@ -21,14 +21,22 @@ class AppBlockerService : Service() {
   private val handler = Handler(Looper.getMainLooper())
   private var lastForegroundPackage: String? = null
   private lateinit var overlayManager: OverlayManager
+  @Volatile private var paused = false
+
+  private val resumeRunnable = Runnable {
+    Log.d(TAG, "Temporary unlock expired, resuming blocking")
+    paused = false
+  }
 
   private val pollRunnable = object : Runnable {
     override fun run() {
-      val foregroundPackage = getCurrentForegroundPackage()
-      if (foregroundPackage != null && foregroundPackage != lastForegroundPackage) {
-        Log.d(TAG, "Foreground changed: $foregroundPackage")
-        lastForegroundPackage = foregroundPackage
-        handleForegroundChange(foregroundPackage)
+      if (!paused) {
+        val foregroundPackage = getCurrentForegroundPackage()
+        if (foregroundPackage != null && foregroundPackage != lastForegroundPackage) {
+          Log.d(TAG, "Foreground changed: $foregroundPackage")
+          lastForegroundPackage = foregroundPackage
+          handleForegroundChange(foregroundPackage)
+        }
       }
       handler.postDelayed(this, POLL_INTERVAL_MS)
     }
@@ -115,7 +123,17 @@ class AppBlockerService : Service() {
   }
 
   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-    Log.d(TAG, "AppBlockerService onStartCommand")
+    val action = intent?.action
+    if (action == ACTION_TEMPORARY_UNLOCK) {
+      val minutes = intent.getIntExtra(EXTRA_DURATION_MINUTES, 0)
+      if (minutes > 0) {
+        Log.d(TAG, "Temporary unlock for $minutes minutes")
+        handler.removeCallbacks(resumeRunnable)
+        paused = true
+        overlayManager.hide()
+        handler.postDelayed(resumeRunnable, minutes * 60_000L)
+      }
+    }
     return START_STICKY
   }
 
@@ -181,6 +199,8 @@ class AppBlockerService : Service() {
     private const val BLOCKED_NOTIFICATION_ID = 9002
     private const val POLL_INTERVAL_MS = 500L
     private const val LOOKBACK_WINDOW_MS = 10_000L
+    private const val ACTION_TEMPORARY_UNLOCK = "expo.modules.appblocker.TEMPORARY_UNLOCK"
+    private const val EXTRA_DURATION_MINUTES = "duration_minutes"
 
     fun start(context: Context) {
       val intent = Intent(context, AppBlockerService::class.java)
@@ -194,6 +214,18 @@ class AppBlockerService : Service() {
     fun stop(context: Context) {
       val intent = Intent(context, AppBlockerService::class.java)
       context.stopService(intent)
+    }
+
+    fun temporaryUnlock(context: Context, durationMinutes: Int) {
+      val intent = Intent(context, AppBlockerService::class.java).apply {
+        action = ACTION_TEMPORARY_UNLOCK
+        putExtra(EXTRA_DURATION_MINUTES, durationMinutes)
+      }
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        context.startForegroundService(intent)
+      } else {
+        context.startService(intent)
+      }
     }
   }
 }
