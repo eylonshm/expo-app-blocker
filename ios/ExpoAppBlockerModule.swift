@@ -14,8 +14,13 @@ public class ExpoAppBlockerModule: Module {
   private var sharedDefaults: UserDefaults?
   private let userDefaults = UserDefaults.standard
   private let blockConfigStorageKey = "appBlocker.blockConfiguration.v1"
+  // Stores the granted earned-time budget in **seconds** (Int). Presence with a
+  // value > 0 means a temporary unlock is active. Enforcement is usage-based: the
+  // shield is re-applied by the DeviceActivityMonitor once cumulative foreground
+  // usage of the blocked apps reaches the threshold (see `startUsageBasedRelock`).
   private let temporaryUnlockKey = "appBlocker.temporaryUnlock.v1"
   private let unlockActivityName = "appBlocker.temporaryUnlock"
+  private let usageEventName = "appBlocker.usageThreshold"
   private let pendingUnlockKey = "appBlocker.pendingUnlock.v1"
   private let minimumTemporaryUnlockMinutes = 1
   private var didLoadPersistedConfig = false
@@ -199,8 +204,8 @@ public class ExpoAppBlockerModule: Module {
           return
         }
 
-        let expirationDate = Date().addingTimeInterval(TimeInterval(sanitizedDurationMinutes * 60))
-        self.sharedDefaults?.set(expirationDate, forKey: self.temporaryUnlockKey)
+        let budgetSeconds = sanitizedDurationMinutes * 60
+        self.sharedDefaults?.set(budgetSeconds, forKey: self.temporaryUnlockKey)
 
         DispatchQueue.main.async {
           self.store.shield.applications = nil
@@ -208,51 +213,39 @@ public class ExpoAppBlockerModule: Module {
           self.store.shield.webDomains = nil
         }
 
-        // Try to schedule relock, but don't fail if schedule is too short
-        // (Apple requires minimum ~15 min for DeviceActivitySchedule)
+        // Re-block once cumulative *usage* of the blocked apps hits the budget.
+        // iOS only counts foreground time, so the budget pauses/resumes for free.
         do {
-          try self.scheduleRelockActivity(expirationDate: expirationDate)
+          try self.startUsageBasedRelock(minutes: sanitizedDurationMinutes)
         } catch {
-          // Schedule failed (too short) - that's OK, we still unlock.
-          // The app will re-check and relock via checkAndApplyUnlockState
-          // when the expiration passes and user returns to the app.
-          print("[AppBlocker] Schedule relock failed (duration may be too short): \(error.localizedDescription)")
+          // Monitoring failed to start (e.g. threshold below Apple's granularity).
+          // The unlock still happens; the shield falls back to re-applying on the
+          // next app launch via checkAndApplyUnlockState.
+          print("[AppBlocker] Usage-based relock failed to start: \(error.localizedDescription)")
         }
 
+        // `expiresAt` is a best-effort wall-clock hint only — actual relock is
+        // usage-based, so the real expiry depends on how much the apps are used.
+        let approxExpiresAt = Date().addingTimeInterval(TimeInterval(budgetSeconds)).timeIntervalSince1970
         DispatchQueue.main.async {
           promise.resolve([
             "unlocked": true,
-            "expiresAt": expirationDate.timeIntervalSince1970
+            "expiresAt": approxExpiresAt
           ])
         }
       }
     }
 
     Function("isTemporarilyUnlocked") { () -> Bool in
-      guard let expirationDate = self.sharedDefaults?.object(forKey: self.temporaryUnlockKey) as? Date else {
-        return false
-      }
-
-      if Date() < expirationDate {
-        return true
-      }
-
-      self.relockApps()
-      return false
+      return self.remainingUnlockBudgetSeconds() > 0
     }
 
+    // NOTE: On iOS this returns the *granted* budget, not a live remaining count —
+    // Apple does not expose cumulative usage to the app, so the value does not tick
+    // down as the blocked apps are used. It drops to 0 once the usage threshold
+    // re-applies the shield (or on relock).
     Function("getRemainingUnlockTime") { () -> Int in
-      guard let expirationDate = self.sharedDefaults?.object(forKey: self.temporaryUnlockKey) as? Date else {
-        return 0
-      }
-
-      let remaining = expirationDate.timeIntervalSince(Date())
-      if remaining > 0 {
-        return Int(remaining)
-      }
-
-      self.relockApps()
-      return 0
+      return self.remainingUnlockBudgetSeconds()
     }
 
     AsyncFunction("relockApps") { (promise: Promise) in
@@ -348,23 +341,14 @@ public class ExpoAppBlockerModule: Module {
 
     ensureLoadedPersistedConfig()
 
-    if let expirationDate = sharedDefaults?.object(forKey: temporaryUnlockKey) as? Date {
-      let remaining = expirationDate.timeIntervalSince(Date())
-
-      if remaining > 0 {
-        DispatchQueue.main.async {
-          self.store.shield.applications = nil
-          self.store.shield.applicationCategories = nil
-          self.store.shield.webDomains = nil
-        }
-
-        do {
-          try scheduleRelockActivity(expirationDate: expirationDate)
-        } catch {
-          relockApps()
-        }
-      } else {
-        relockApps()
+    if remainingUnlockBudgetSeconds() > 0 {
+      // Unlock still active — keep the shield off. The usage-threshold monitor
+      // started in `temporaryUnlock` persists across app launches and will
+      // re-apply the shield once the usage budget is spent.
+      DispatchQueue.main.async {
+        self.store.shield.applications = nil
+        self.store.shield.applicationCategories = nil
+        self.store.shield.webDomains = nil
       }
     } else if let config = currentBlockConfig {
       do {
@@ -497,49 +481,56 @@ public class ExpoAppBlockerModule: Module {
 
   // MARK: - Activity Scheduling
 
-  private func scheduleRelockActivity(expirationDate: Date) throws {
+  /// Start usage-based monitoring: re-apply the shield once cumulative foreground
+  /// usage of the blocked apps reaches `minutes`. iOS counts only active usage, so
+  /// the budget naturally pauses when the apps aren't in use and resumes on return.
+  ///
+  /// Uses an all-day repeating schedule purely as a container for the usage event;
+  /// the `eventDidReachThreshold` callback (in the DeviceActivityMonitor extension)
+  /// does the actual relock. `repeats: true` keeps the monitor alive across days so
+  /// apps are never left unlocked without enforcement; the tradeoff is that
+  /// `intervalDidEnd` clears any unspent budget at the day boundary (earned time
+  /// does not carry across midnight).
+  ///
+  /// Note: Apple's usage thresholds are unreliable below a few minutes — very small
+  /// budgets may relock late or only at the daily interval boundary.
+  private func startUsageBasedRelock(minutes: Int) throws {
     scheduleLock.lock()
     defer { scheduleLock.unlock() }
 
     cancelRelockActivityLocked()
 
-    let activityName = DeviceActivityName(unlockActivityName)
-    let calendar = Calendar.current
-    let now = Date()
-    let startComponents = calendar.dateComponents([.hour, .minute, .second], from: now)
-    let endComponents = calendar.dateComponents([.hour, .minute, .second], from: expirationDate)
-    let nowDay = calendar.startOfDay(for: now)
-    let expirationDay = calendar.startOfDay(for: expirationDate)
+    guard let config = currentBlockConfig else {
+      print("[AppBlocker] startUsageBasedRelock: no active config, monitoring not started")
+      return
+    }
+    let appTokens = Set(config.items.compactMap { $0.appToken })
+    let categoryTokens = Set(config.items.compactMap { $0.categoryToken })
+    let webDomainTokens = Set(config.items.compactMap { $0.webDomainToken })
 
-    let schedule: DeviceActivitySchedule
-
-    if nowDay == expirationDay {
-      schedule = DeviceActivitySchedule(
-        intervalStart: DateComponents(
-          hour: startComponents.hour,
-          minute: startComponents.minute,
-          second: startComponents.second
-        ),
-        intervalEnd: DateComponents(
-          hour: endComponents.hour,
-          minute: endComponents.minute,
-          second: endComponents.second
-        ),
-        repeats: false
-      )
-    } else {
-      schedule = DeviceActivitySchedule(
-        intervalStart: DateComponents(
-          hour: startComponents.hour,
-          minute: startComponents.minute,
-          second: startComponents.second
-        ),
-        intervalEnd: DateComponents(hour: 23, minute: 59, second: 59),
-        repeats: false
-      )
+    guard !appTokens.isEmpty || !categoryTokens.isEmpty || !webDomainTokens.isEmpty else {
+      print("[AppBlocker] startUsageBasedRelock: no blockable tokens, monitoring not started")
+      return
     }
 
-    try activityCenter.startMonitoring(activityName, during: schedule)
+    let event = DeviceActivityEvent(
+      applications: appTokens,
+      categories: categoryTokens,
+      webDomains: webDomainTokens,
+      threshold: DateComponents(minute: max(1, minutes))
+    )
+
+    let schedule = DeviceActivitySchedule(
+      intervalStart: DateComponents(hour: 0, minute: 0, second: 0),
+      intervalEnd: DateComponents(hour: 23, minute: 59, second: 59),
+      repeats: true
+    )
+
+    try activityCenter.startMonitoring(
+      DeviceActivityName(unlockActivityName),
+      during: schedule,
+      events: [DeviceActivityEvent.Name(usageEventName): event]
+    )
   }
 
   private func cancelRelockActivity() {
@@ -554,16 +545,12 @@ public class ExpoAppBlockerModule: Module {
   }
 
   private func isTemporarilyUnlockedInternal() -> Bool {
-    guard let expirationDate = sharedDefaults?.object(forKey: temporaryUnlockKey) as? Date else {
-      return false
-    }
+    return remainingUnlockBudgetSeconds() > 0
+  }
 
-    if Date() < expirationDate {
-      return true
-    }
-
-    sharedDefaults?.removeObject(forKey: temporaryUnlockKey)
-    return false
+  /// Granted earned-time budget in seconds (0 if no active unlock). See `temporaryUnlockKey`.
+  private func remainingUnlockBudgetSeconds() -> Int {
+    return (sharedDefaults?.object(forKey: temporaryUnlockKey) as? Int) ?? 0
   }
 
   // MARK: - Serialization

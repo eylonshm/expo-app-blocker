@@ -20,31 +20,63 @@ import androidx.core.app.NotificationCompat
 class AppBlockerService : Service() {
   private val handler = Handler(Looper.getMainLooper())
   private var lastForegroundPackage: String? = null
+  // Last *known* foreground app. UsageStats only reports recent transitions, so a
+  // poll can momentarily read null while the user sits in one app — we retain the
+  // last non-null reading so earned-time consumption and re-blocking stay reliable.
+  private var currentForeground: String? = null
   private lateinit var overlayManager: OverlayManager
-  private val unlockController by lazy { TemporaryUnlockController(this, handler) }
-  private var wasUnlocked = false
+  private val unlockController by lazy { TemporaryUnlockController(this) }
+  // Timestamp of the last tick spent consuming earned time; 0 when not consuming.
+  private var consumingSinceMs = 0L
+  // Whether a block is currently being enforced (overlay shown / app redirected).
+  private var blocking = false
 
   private val pollRunnable = object : Runnable {
     override fun run() {
-      if (unlockController.isUnlocked) {
-        wasUnlocked = true
-      } else {
-        val foregroundPackage = getCurrentForegroundPackage()
-        val unlockJustExpired = wasUnlocked
-        wasUnlocked = false
-
-        if (unlockJustExpired && foregroundPackage != null && isBlocked(foregroundPackage)) {
-          // Earned time ran out while the user was still inside a blocked app.
-          Log.d(TAG, "Unlock expired in foreground app: $foregroundPackage")
-          lastForegroundPackage = foregroundPackage
-          block(foregroundPackage, BlockReason.EXPIRED)
-        } else if (foregroundPackage != null && foregroundPackage != lastForegroundPackage) {
-          Log.d(TAG, "Foreground changed: $foregroundPackage")
-          lastForegroundPackage = foregroundPackage
-          handleForegroundChange(foregroundPackage)
-        }
-      }
+      tick()
       handler.postDelayed(this, POLL_INTERVAL_MS)
+    }
+  }
+
+  private fun tick() {
+    getCurrentForegroundPackage()?.let { currentForeground = it }
+    val foreground = currentForeground
+
+    if (foreground == null || !isBlocked(foreground)) {
+      // Outside any blocked app: pause consumption and drop any active block.
+      consumingSinceMs = 0L
+      clearBlock()
+      lastForegroundPackage = foreground
+      return
+    }
+
+    if (unlockController.hasTimeLeft) {
+      // Inside a blocked app with earned time — spend it and keep the app usable.
+      val now = System.currentTimeMillis()
+      if (consumingSinceMs > 0L) unlockController.consume(now - consumingSinceMs)
+      consumingSinceMs = now
+      if (unlockController.hasTimeLeft) {
+        clearBlock()
+      } else {
+        // Earned time ran out while still inside the app.
+        Log.d(TAG, "Earned time exhausted in foreground app: $foreground")
+        enforceBlock(foreground, BlockReason.EXPIRED)
+      }
+    } else {
+      // Inside a blocked app with no earned time — block on entry.
+      consumingSinceMs = 0L
+      if (!blocking || foreground != lastForegroundPackage) {
+        Log.d(TAG, "Blocked app in foreground: $foreground")
+        enforceBlock(foreground, BlockReason.OPENED)
+      }
+    }
+    lastForegroundPackage = foreground
+  }
+
+  private fun clearBlock() {
+    if (blocking) {
+      overlayManager.hide()
+      blocking = false
     }
   }
 
@@ -62,18 +94,11 @@ class AppBlockerService : Service() {
   private fun isBlocked(packageName: String): Boolean =
     packageName in AppBlockerPrefs.getBlockedPackages(this)
 
-  private fun handleForegroundChange(foregroundPackage: String) {
-    if (isBlocked(foregroundPackage)) {
-      Log.d(TAG, "Blocked app in foreground: $foregroundPackage")
-      block(foregroundPackage, BlockReason.OPENED)
-    } else {
-      overlayManager.hide()
-    }
-  }
-
-  private fun block(packageName: String, reason: BlockReason) {
+  private fun enforceBlock(packageName: String, reason: BlockReason) {
     overlayManager.show(packageName, reason)
     showBlockedNotification(packageName, reason)
+    blocking = true
+    consumingSinceMs = 0L
   }
 
   private fun showBlockedNotification(packageName: String, reason: BlockReason) {
@@ -141,16 +166,21 @@ class AppBlockerService : Service() {
     when (intent?.action) {
       ACTION_TEMPORARY_UNLOCK -> {
         val minutes = intent.getIntExtra(EXTRA_DURATION_MINUTES, 0)
-        Log.d(TAG, "Temporary unlock for $minutes minutes")
-        unlockController.unlock(minutes)
-        overlayManager.hide()
+        Log.d(TAG, "Granting $minutes minutes of earned time")
+        unlockController.grant(minutes)
+        consumingSinceMs = 0L
+        clearBlock()
       }
       ACTION_RELOCK -> {
-        Log.d(TAG, "Relock: ending temporary unlock")
-        unlockController.relock()
-        // Forget the last-seen app so a blocked app already in the foreground
-        // is re-detected and re-blocked on the next poll.
+        Log.d(TAG, "Relock: dropping earned time")
+        unlockController.clear()
+        consumingSinceMs = 0L
+        // Forget the last-seen app so a blocked app already in the foreground is
+        // re-blocked on the next poll. Clearing currentForeground too avoids a
+        // stale reading wrongly blocking a non-blocked app if the next poll reads null.
         lastForegroundPackage = null
+        currentForeground = null
+        clearBlock()
       }
     }
     return START_STICKY

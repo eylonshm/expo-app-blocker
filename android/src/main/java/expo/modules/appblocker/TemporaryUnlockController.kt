@@ -1,64 +1,63 @@
 package expo.modules.appblocker
 
 import android.content.Context
-import android.os.Handler
 
 /**
- * Single source of truth for the Android "temporary unlock" state.
+ * Single source of truth for the Android "earned time" budget.
  *
- * While unlocked, the monitor should not block — see [isUnlocked]. An unlock
- * auto-expires after the requested duration; [relock] ends it early. The expiry
- * timestamp is persisted (see [Store]) so the JS module can read the remaining
- * time without holding a reference to the running service, mirroring the iOS
- * shared-defaults approach.
+ * Unlock time is a *budget of seconds* that is consumed only while a blocked app
+ * is actually in the foreground — see [AppBlockerService], which calls [consume]
+ * on each poll tick spent inside a blocked app and leaves the budget untouched
+ * otherwise. This gives pause/resume semantics: leaving the blocked app freezes
+ * the remaining time; returning resumes it.
  *
- * Drive [unlock] / [relock] from the same (main) thread the [Handler] is bound to.
+ * The budget is persisted (see [Store]) so the JS module can read it without
+ * holding a reference to the running service, mirroring the iOS approach.
+ *
+ * [consume] and [grant] do a read-modify-write on the persisted budget and are
+ * NOT atomic; the service drives both from the main thread (the poll Handler and
+ * onStartCommand share that thread), which serializes them. Don't call these from
+ * another thread without adding synchronization.
  */
-class TemporaryUnlockController(
-  private val context: Context,
-  private val handler: Handler,
-) {
-  private val expireRunnable = Runnable { Store.clear(context) }
+class TemporaryUnlockController(private val context: Context) {
+  /** True while earned time remains (blocking should be suppressed inside blocked apps). */
+  val hasTimeLeft: Boolean
+    get() = Store.remainingMs(context) > 0
 
-  /** True while a temporary unlock is in effect (blocking should be suppressed). */
-  val isUnlocked: Boolean
-    get() = Store.remainingSeconds(context) > 0
-
-  /** Suppress blocking for [durationMinutes], replacing any pending expiry. No-op if <= 0. */
-  fun unlock(durationMinutes: Int) {
+  /** Grant a fresh budget of [durationMinutes], replacing any existing balance. No-op if <= 0. */
+  fun grant(durationMinutes: Int) {
     if (durationMinutes <= 0) return
-    val durationMs = durationMinutes * 60_000L
-    handler.removeCallbacks(expireRunnable)
-    Store.setExpiry(context, System.currentTimeMillis() + durationMs)
-    handler.postDelayed(expireRunnable, durationMs)
+    Store.setRemaining(context, durationMinutes * 60_000L)
   }
 
-  /** End any active unlock immediately, restoring blocking. */
-  fun relock() {
-    handler.removeCallbacks(expireRunnable)
-    Store.clear(context)
+  /** Spend [elapsedMs] of the budget (clamped at 0). Called while inside a blocked app. */
+  fun consume(elapsedMs: Long) {
+    if (elapsedMs <= 0) return
+    val remaining = Store.remainingMs(context)
+    if (remaining <= 0) return
+    Store.setRemaining(context, (remaining - elapsedMs).coerceAtLeast(0))
+  }
+
+  /** Drop the entire budget immediately, restoring blocking. */
+  fun clear() {
+    Store.setRemaining(context, 0)
   }
 
   /**
-   * Stateless persistence for the unlock expiry. Readable from anywhere with a
+   * Stateless persistence for the remaining budget. Readable from anywhere with a
    * [Context] — the running service is not required.
    */
   companion object Store {
-    private const val KEY_EXPIRES_AT = "temporary_unlock_expires_at"
+    private const val KEY_REMAINING_MS = "temporary_unlock_remaining_ms"
 
-    private fun setExpiry(context: Context, expiresAtMs: Long) {
-      AppBlockerPrefs.get(context).edit().putLong(KEY_EXPIRES_AT, expiresAtMs).apply()
+    private fun setRemaining(context: Context, remainingMs: Long) {
+      AppBlockerPrefs.get(context).edit().putLong(KEY_REMAINING_MS, remainingMs).apply()
     }
 
-    private fun clear(context: Context) {
-      AppBlockerPrefs.get(context).edit().remove(KEY_EXPIRES_AT).apply()
-    }
+    private fun remainingMs(context: Context): Long =
+      AppBlockerPrefs.get(context).getLong(KEY_REMAINING_MS, 0L).coerceAtLeast(0L)
 
-    /** Seconds remaining on the active unlock, or 0 if none / already expired. */
-    fun remainingSeconds(context: Context): Int {
-      val expiresAtMs = AppBlockerPrefs.get(context).getLong(KEY_EXPIRES_AT, 0L)
-      val remainingMs = expiresAtMs - System.currentTimeMillis()
-      return if (remainingMs > 0) (remainingMs / 1000).toInt() else 0
-    }
+    /** Seconds of earned time remaining, or 0 if none. */
+    fun remainingSeconds(context: Context): Int = (remainingMs(context) / 1000).toInt()
   }
 }

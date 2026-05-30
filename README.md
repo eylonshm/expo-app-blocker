@@ -486,7 +486,12 @@ const config = getBlockConfiguration();
 clearAllBlocks();
 ```
 
-### iOS: Temporary Unlock
+### Temporary Unlock (usage-based)
+
+`temporaryUnlock(minutes)` grants a budget of earned minutes that is consumed
+**only while a blocked app is actually in the foreground** — leaving the blocked
+app pauses the budget; returning resumes it. When the budget is spent, the apps
+re-block.
 
 ```typescript
 import {
@@ -496,45 +501,27 @@ import {
   relockApps,
 } from 'expo-app-blocker';
 
-// Unlock for N minutes (removes shields temporarily)
+// Grant N minutes of usage budget for the blocked apps
 const result = await temporaryUnlock(15);
-// { unlocked: boolean, expiresAt: number }
+// { unlocked: true, expiresAt: number }  (expiresAt is a best-effort hint only)
 
-const unlocked = isTemporarilyUnlocked(); // boolean
-const seconds = getRemainingUnlockTime(); // seconds remaining
-await relockApps();                        // re-lock immediately
+const seconds = getRemainingUnlockTime(); // seconds of budget remaining, 0 if none
+await relockApps();                        // drop the budget now, re-block immediately
 ```
 
-### Android: Temporary Unlock
+**How each platform enforces it:**
 
-The same temporary-unlock API works on Android. The foreground service pauses
-blocking for the requested duration and auto-resumes when it expires — the timer
-lives in the service, so it survives your app being backgrounded.
+| | Android | iOS |
+|---|---|---|
+| Mechanism | Foreground-service poll consumes the budget each tick spent inside a blocked app | DeviceActivity usage-threshold event re-applies the Family Controls shield after N minutes of measured usage |
+| `getRemainingUnlockTime()` | Live — ticks down while inside a blocked app, freezes otherwise | Returns the **granted** budget; iOS can't expose live usage, so it stays flat until the threshold fires (then `0`) |
+| `isTemporarilyUnlocked()` | Returns `false` (use `getRemainingUnlockTime() > 0`) | `true` while budget remains |
+| Caveats | — | Apple thresholds are unreliable below a few minutes; unspent budget is cleared at the daily schedule boundary (midnight) |
 
-```typescript
-import {
-  temporaryUnlock,
-  getRemainingUnlockTime,
-  relockApps,
-} from 'expo-app-blocker';
-
-// Suppress blocking for N minutes; auto-resumes on expiry
-await temporaryUnlock(15);
-// { unlocked: true, expiresAt: number }
-
-const seconds = getRemainingUnlockTime(); // seconds remaining, 0 if none
-await relockApps();                        // end the unlock now, re-block immediately
-```
-
-| Function | Android behavior |
-|---|---|
-| `temporaryUnlock(minutes)` | Suppresses blocking for `minutes` (min 1, rounded). Replaces any active unlock. |
-| `getRemainingUnlockTime()` | Seconds left on the active unlock, or `0`. Backed by a persisted expiry, so it's accurate without the app holding service state. |
-| `relockApps()` | Ends the unlock immediately and re-blocks the foreground app on the next poll. |
-| `isTemporarilyUnlocked()` | iOS only — returns `false` on Android. Use `getRemainingUnlockTime() > 0` instead. |
-
-> When an unlock expires while the user is still inside a blocked app, the
-> deep link fires with `reason=expired` (see [Deep-link contract](#deep-link-contract-how-your-app-is-launched)).
+> **Android only:** when the budget runs out while the user is still inside a
+> blocked app, the deep link fires with `reason=expired` (see
+> [Deep-link contract](#deep-link-contract-how-your-app-is-launched)) so you can
+> show a "time's up" screen instead of a cold block.
 
 ### iOS: Shield Button Events
 

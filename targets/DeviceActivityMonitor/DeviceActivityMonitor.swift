@@ -20,12 +20,24 @@ class AppBlockerDeviceActivityMonitor: DeviceActivityMonitor {
 
   override func intervalDidEnd(for activity: DeviceActivityName) {
     super.intervalDidEnd(for: activity)
+    // Daily safety net: clear any active unlock budget at the schedule boundary.
     sharedDefaults?.removeObject(forKey: temporaryUnlockKey)
     reapplyBlockConfiguration()
   }
 
   override func intervalDidStart(for activity: DeviceActivityName) {
     super.intervalDidStart(for: activity)
+  }
+
+  override func eventDidReachThreshold(
+    _ event: DeviceActivityEvent.Name,
+    activity: DeviceActivityName
+  ) {
+    super.eventDidReachThreshold(event, activity: activity)
+    // The user has spent their earned usage budget on the blocked apps —
+    // clear the unlock and re-apply the shield.
+    sharedDefaults?.removeObject(forKey: temporaryUnlockKey)
+    reapplyBlockConfiguration()
   }
 
   private func reapplyBlockConfiguration() {

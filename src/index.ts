@@ -189,7 +189,15 @@ export function isTemporarilyUnlocked(): boolean {
   return NativeModule.isTemporarilyUnlocked();
 }
 
-/** Seconds remaining on the active temporary unlock, or 0 if none. */
+/**
+ * Seconds remaining on the active temporary unlock, or 0 if none.
+ *
+ * Platform divergence: on **Android** this ticks down live as the budget is spent
+ * inside blocked apps (and freezes when you leave). On **iOS** Apple does not expose
+ * live cumulative usage, so this returns the *granted* budget and stays flat until
+ * the usage threshold re-applies the shield (then drops to 0). Don't rely on a
+ * smooth iOS countdown.
+ */
 export function getRemainingUnlockTime(): number {
   if (Platform.OS === "android") return NativeModule.getRemainingUnlockTimeAndroid();
   return NativeModule.getRemainingUnlockTime();
