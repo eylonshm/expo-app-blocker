@@ -123,6 +123,10 @@ class ExpoAppBlockerModule : Module() {
       Log.d(TAG, "relockAndroid")
     }
 
+    Function("getRemainingUnlockTimeAndroid") {
+      TemporaryUnlockController.remainingSeconds(context)
+    }
+
     AsyncFunction("getInstalledApps") {
       val pm = context.packageManager
       val intent = Intent(Intent.ACTION_MAIN).apply {

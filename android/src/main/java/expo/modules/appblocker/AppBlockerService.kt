@@ -21,7 +21,7 @@ class AppBlockerService : Service() {
   private val handler = Handler(Looper.getMainLooper())
   private var lastForegroundPackage: String? = null
   private lateinit var overlayManager: OverlayManager
-  private val unlockController = TemporaryUnlockController(handler)
+  private val unlockController by lazy { TemporaryUnlockController(this, handler) }
 
   private val pollRunnable = object : Runnable {
     override fun run() {

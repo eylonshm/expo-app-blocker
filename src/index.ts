@@ -181,8 +181,9 @@ export function isTemporarilyUnlocked(): boolean {
   return NativeModule.isTemporarilyUnlocked();
 }
 
+/** Seconds remaining on the active temporary unlock, or 0 if none. */
 export function getRemainingUnlockTime(): number {
-  if (Platform.OS !== "ios") return 0;
+  if (Platform.OS === "android") return NativeModule.getRemainingUnlockTimeAndroid();
   return NativeModule.getRemainingUnlockTime();
 }
 
