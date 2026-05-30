@@ -22,12 +22,23 @@ class AppBlockerService : Service() {
   private var lastForegroundPackage: String? = null
   private lateinit var overlayManager: OverlayManager
   private val unlockController by lazy { TemporaryUnlockController(this, handler) }
+  private var wasUnlocked = false
 
   private val pollRunnable = object : Runnable {
     override fun run() {
-      if (!unlockController.isUnlocked) {
+      if (unlockController.isUnlocked) {
+        wasUnlocked = true
+      } else {
         val foregroundPackage = getCurrentForegroundPackage()
-        if (foregroundPackage != null && foregroundPackage != lastForegroundPackage) {
+        val unlockJustExpired = wasUnlocked
+        wasUnlocked = false
+
+        if (unlockJustExpired && foregroundPackage != null && isBlocked(foregroundPackage)) {
+          // Earned time ran out while the user was still inside a blocked app.
+          Log.d(TAG, "Unlock expired in foreground app: $foregroundPackage")
+          lastForegroundPackage = foregroundPackage
+          block(foregroundPackage, BlockReason.EXPIRED)
+        } else if (foregroundPackage != null && foregroundPackage != lastForegroundPackage) {
           Log.d(TAG, "Foreground changed: $foregroundPackage")
           lastForegroundPackage = foregroundPackage
           handleForegroundChange(foregroundPackage)
@@ -48,18 +59,24 @@ class AppBlockerService : Service() {
     handler.post(pollRunnable)
   }
 
+  private fun isBlocked(packageName: String): Boolean =
+    packageName in AppBlockerPrefs.getBlockedPackages(this)
+
   private fun handleForegroundChange(foregroundPackage: String) {
-    val blocked = AppBlockerPrefs.getBlockedPackages(this)
-    if (foregroundPackage in blocked) {
+    if (isBlocked(foregroundPackage)) {
       Log.d(TAG, "Blocked app in foreground: $foregroundPackage")
-      overlayManager.show(foregroundPackage)
-      showBlockedNotification(foregroundPackage)
+      block(foregroundPackage, BlockReason.OPENED)
     } else {
       overlayManager.hide()
     }
   }
 
-  private fun showBlockedNotification(packageName: String) {
+  private fun block(packageName: String, reason: BlockReason) {
+    overlayManager.show(packageName, reason)
+    showBlockedNotification(packageName, reason)
+  }
+
+  private fun showBlockedNotification(packageName: String, reason: BlockReason) {
     val appName = try {
       val pm = this.packageManager
       val appInfo = pm.getApplicationInfo(packageName, 0)
@@ -74,7 +91,10 @@ class AppBlockerService : Service() {
     val scheme = getAppScheme()
     val deepLinkIntent = Intent(
       Intent.ACTION_VIEW,
-      Uri.parse("${scheme}://blocked?app=${Uri.encode(appName)}&package=${Uri.encode(packageName)}")
+      Uri.parse(
+        "${scheme}://blocked?app=${Uri.encode(appName)}" +
+          "&package=${Uri.encode(packageName)}&reason=${reason.slug}"
+      )
     ).apply {
       addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
     }

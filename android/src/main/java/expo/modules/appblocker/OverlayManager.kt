@@ -24,11 +24,11 @@ class OverlayManager(private val context: Context) {
 
   private var overlayView: View? = null
 
-  fun show(blockedPackageName: String? = null) {
+  fun show(blockedPackageName: String? = null, reason: BlockReason = BlockReason.OPENED) {
     if (overlayView != null) {
       Log.d(TAG, "Overlay already visible")
       if (blockedPackageName != null) {
-        navigateToApp(blockedPackageName)
+        navigateToApp(blockedPackageName, reason)
       } else {
         bringAppToFront()
       }
@@ -47,7 +47,7 @@ class OverlayManager(private val context: Context) {
     }
 
     if (blockedPackageName != null) {
-      navigateToApp(blockedPackageName)
+      navigateToApp(blockedPackageName, reason)
     } else {
       bringAppToFront()
     }
@@ -72,14 +72,17 @@ class OverlayManager(private val context: Context) {
     packageName
   }
 
-  private fun navigateToApp(blockedPackageName: String) {
+  private fun navigateToApp(blockedPackageName: String, reason: BlockReason) {
     val appName = resolveAppName(blockedPackageName)
 
     // Use the app's own scheme for deep linking
     val scheme = getAppScheme()
     val deepLinkIntent = Intent(
       Intent.ACTION_VIEW,
-      Uri.parse("${scheme}://blocked?app=${Uri.encode(appName)}&package=${Uri.encode(blockedPackageName)}")
+      Uri.parse(
+        "${scheme}://blocked?app=${Uri.encode(appName)}" +
+          "&package=${Uri.encode(blockedPackageName)}&reason=${reason.slug}"
+      )
     ).apply {
       addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
     }
