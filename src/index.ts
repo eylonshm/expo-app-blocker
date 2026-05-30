@@ -187,8 +187,9 @@ export function getRemainingUnlockTime(): number {
 }
 
 export async function relockApps(): Promise<RelockResult> {
-  if (Platform.OS !== "ios") {
-    throw new Error("Relock is only available on iOS");
+  if (Platform.OS === "android") {
+    NativeModule.relockAndroid();
+    return { locked: true };
   }
   return NativeModule.relockApps();
 }

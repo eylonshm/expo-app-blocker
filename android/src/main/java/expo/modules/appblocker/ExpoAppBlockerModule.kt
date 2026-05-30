@@ -118,6 +118,11 @@ class ExpoAppBlockerModule : Module() {
       Log.d(TAG, "temporaryUnlockAndroid: $durationMinutes minutes")
     }
 
+    Function("relockAndroid") {
+      AppBlockerService.relock(context)
+      Log.d(TAG, "relockAndroid")
+    }
+
     AsyncFunction("getInstalledApps") {
       val pm = context.packageManager
       val intent = Intent(Intent.ACTION_MAIN).apply {
