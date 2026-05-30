@@ -168,6 +168,13 @@ export function isAppBlocked(bundleIdentifier: string): boolean {
 // iOS-specific: Temporary unlock
 // ──────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Suppress blocking for `durationMinutes`, then auto-resume.
+ *
+ * iOS removes the Family Controls shields; Android pauses the foreground-service
+ * poll (the timer lives in the service, so it survives app backgrounding).
+ * Calling again replaces any active unlock. Android rounds to a whole minute (min 1).
+ */
 export async function temporaryUnlock(durationMinutes: number = 15): Promise<TemporaryUnlockResult> {
   if (Platform.OS === "android") {
     NativeModule.temporaryUnlockAndroid(Math.max(1, Math.round(durationMinutes)));
@@ -176,6 +183,7 @@ export async function temporaryUnlock(durationMinutes: number = 15): Promise<Tem
   return NativeModule.temporaryUnlock(durationMinutes);
 }
 
+/** iOS only — returns `false` on Android. On Android use `getRemainingUnlockTime() > 0`. */
 export function isTemporarilyUnlocked(): boolean {
   if (Platform.OS !== "ios") return false;
   return NativeModule.isTemporarilyUnlocked();
@@ -187,6 +195,12 @@ export function getRemainingUnlockTime(): number {
   return NativeModule.getRemainingUnlockTime();
 }
 
+/**
+ * End an active temporary unlock immediately and re-block.
+ *
+ * iOS restores the shields; Android cancels the unlock and re-blocks the
+ * foreground app on the next poll. Safe to call when nothing is unlocked.
+ */
 export async function relockApps(): Promise<RelockResult> {
   if (Platform.OS === "android") {
     NativeModule.relockAndroid();

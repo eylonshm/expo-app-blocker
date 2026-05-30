@@ -388,6 +388,31 @@ startMonitoring();   // Start foreground service (auto-started on init)
 stopMonitoring();    // Stop monitoring
 ```
 
+#### Deep-link contract (how your app is launched)
+
+When the foreground service detects a blocked app, it brings **your** app to the
+front via a deep link using your app's own URL scheme:
+
+```
+<yourScheme>://blocked?app=<AppName>&package=<package.name>&reason=<reason>
+```
+
+| Param | Description |
+|---|---|
+| `app` | Human-readable label of the blocked app (URL-encoded), e.g. `Instagram` |
+| `package` | Android package name of the blocked app, e.g. `com.instagram.android` |
+| `reason` | Why the block fired — see below. Lets you branch your UI |
+
+`reason` values:
+
+| Value | Meaning |
+|---|---|
+| `opened` | A blocked app was freshly brought to the foreground. |
+| `expired` | A [temporary unlock](#android-temporary-unlock) expired while the user was still **inside** the blocked app. Handle this if you want a softer "time's up" interstitial instead of jumping straight into your gate. |
+
+Handle the deep link with `expo-linking` / `expo-router` like any other route.
+Your scheme is auto-detected from the app config; no extra setup required.
+
 ### iOS: App Selection
 
 Two ways to let users pick which apps to block:
@@ -479,6 +504,37 @@ const unlocked = isTemporarilyUnlocked(); // boolean
 const seconds = getRemainingUnlockTime(); // seconds remaining
 await relockApps();                        // re-lock immediately
 ```
+
+### Android: Temporary Unlock
+
+The same temporary-unlock API works on Android. The foreground service pauses
+blocking for the requested duration and auto-resumes when it expires — the timer
+lives in the service, so it survives your app being backgrounded.
+
+```typescript
+import {
+  temporaryUnlock,
+  getRemainingUnlockTime,
+  relockApps,
+} from 'expo-app-blocker';
+
+// Suppress blocking for N minutes; auto-resumes on expiry
+await temporaryUnlock(15);
+// { unlocked: true, expiresAt: number }
+
+const seconds = getRemainingUnlockTime(); // seconds remaining, 0 if none
+await relockApps();                        // end the unlock now, re-block immediately
+```
+
+| Function | Android behavior |
+|---|---|
+| `temporaryUnlock(minutes)` | Suppresses blocking for `minutes` (min 1, rounded). Replaces any active unlock. |
+| `getRemainingUnlockTime()` | Seconds left on the active unlock, or `0`. Backed by a persisted expiry, so it's accurate without the app holding service state. |
+| `relockApps()` | Ends the unlock immediately and re-blocks the foreground app on the next poll. |
+| `isTemporarilyUnlocked()` | iOS only — returns `false` on Android. Use `getRemainingUnlockTime() > 0` instead. |
+
+> When an unlock expires while the user is still inside a blocked app, the
+> deep link fires with `reason=expired` (see [Deep-link contract](#deep-link-contract-how-your-app-is-launched)).
 
 ### iOS: Shield Button Events
 
