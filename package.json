@@ -1,6 +1,6 @@
 {
   "name": "expo-app-blocker",
-  "version": "0.1.64",
+  "version": "0.1.65",
   "description": "Expo module for cross-platform app blocking. Android: UsageStatsManager + Overlay. iOS: Screen Time API (FamilyControls + ManagedSettings + DeviceActivity).",
   "main": "src/index.ts",
   "types": "src/index.ts",
