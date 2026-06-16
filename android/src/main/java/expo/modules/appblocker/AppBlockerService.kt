@@ -97,8 +97,20 @@ class AppBlockerService : Service() {
   private fun enforceBlock(packageName: String, reason: BlockReason) {
     overlayManager.show(packageName, reason)
     showBlockedNotification(packageName, reason)
+    recordIntercept(packageName)
     blocking = true
     consumingSinceMs = 0L
+  }
+
+  /** Queue this block event for the app to drain (debounced in prefs). */
+  private fun recordIntercept(packageName: String) {
+    val appName = try {
+      val pm = this.packageManager
+      pm.getApplicationLabel(pm.getApplicationInfo(packageName, 0)).toString()
+    } catch (e: Exception) {
+      packageName
+    }
+    AppBlockerPrefs.appendIntercept(this, appName, System.currentTimeMillis())
   }
 
   private fun showBlockedNotification(packageName: String, reason: BlockReason) {

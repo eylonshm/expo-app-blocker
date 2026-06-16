@@ -43,6 +43,46 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
     return Date() < expiration
   }
 
+  // Block-event queue, drained by the app into `blocker_intercepts` to power
+  // the "blocks" counter. The system re-renders the shield often (app
+  // switcher previews, re-foreground), so a short global debounce collapses
+  // those bursts into one logical block event.
+  private let pendingInterceptsKey = "appBlocker.pendingIntercepts.v1"
+  private let lastInterceptTsKey = "appBlocker.lastInterceptTs.v1"
+  private let interceptDebounceMs: Double = 2_000
+  private let maxPendingIntercepts = 200
+
+  // Best-effort block recording. iOS caches the shield configuration and
+  // does NOT reliably re-invoke this data source per open, so the action
+  // handler (ShieldAction) is the primary recorder; this is a bonus path
+  // for the cases the system does re-invoke. Writes share the same App
+  // Group JSON queue + debounce as ShieldAction.
+  private func recordIntercept(appName: String) {
+    guard let defaults = UserDefaults(suiteName: appGroupIdentifier) else { return }
+    defaults.synchronize()
+
+    let nowMs = Date().timeIntervalSince1970 * 1000.0
+    let lastMs = defaults.double(forKey: lastInterceptTsKey)
+    if lastMs > 0, (nowMs - lastMs) < interceptDebounceMs { return }
+
+    var queue: [[String: Any]] = []
+    if let json = defaults.string(forKey: pendingInterceptsKey),
+       let data = json.data(using: .utf8),
+       let parsed = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
+      queue = parsed
+    }
+    queue.append(["appName": appName, "interceptedAt": nowMs])
+    if queue.count > maxPendingIntercepts {
+      queue = Array(queue.suffix(maxPendingIntercepts))
+    }
+    if let data = try? JSONSerialization.data(withJSONObject: queue),
+       let json = String(data: data, encoding: .utf8) {
+      defaults.set(json, forKey: pendingInterceptsKey)
+    }
+    defaults.set(nowMs, forKey: lastInterceptTsKey)
+    defaults.synchronize()
+  }
+
   private func makeConfig(appName: String) -> ShieldConfiguration {
     if isTemporarilyUnlocked() {
       return ShieldConfiguration(
@@ -56,6 +96,10 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
         secondaryButtonLabel: nil
       )
     }
+
+    // A blocked app is being shielded — this is a block event. Record it
+    // (debounced) for the app to drain.
+    recordIntercept(appName: appName)
 
     let count = getBlockedAppCount()
     // The plugin replaces this placeholder with a Swift string literal

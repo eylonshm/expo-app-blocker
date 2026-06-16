@@ -103,6 +103,10 @@ class ExpoAppBlockerModule : Module() {
       AppBlockerPrefs.getBlockedPackages(context).toList()
     }
 
+    Function("drainPendingIntercepts") {
+      AppBlockerPrefs.drainIntercepts(context)
+    }
+
     Function("startMonitoring") {
       AppBlockerService.start(context)
       Log.d(TAG, "startMonitoring called")

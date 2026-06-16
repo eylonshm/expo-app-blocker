@@ -222,6 +222,28 @@ export function checkAndClearPendingUnlock(): boolean {
   return NativeModule.checkAndClearPendingUnlock();
 }
 
+/**
+ * One OS-level block event: the blocker intercepted a blocked app (iOS
+ * shield render / Android foreground block). `interceptedAt` is epoch
+ * milliseconds; `appName` is the localized app name when the platform
+ * can resolve it (null otherwise).
+ */
+export interface PendingIntercept {
+  appName: string | null;
+  interceptedAt: number;
+}
+
+/**
+ * Drain and clear the queue of block events recorded natively since the
+ * last call. Implemented on both platforms (iOS App Group queue / Android
+ * SharedPreferences queue). The app calls this on foreground and persists
+ * the results to power the "blocks" counter.
+ */
+export function drainPendingIntercepts(): PendingIntercept[] {
+  if (Platform.OS !== "ios" && Platform.OS !== "android") return [];
+  return NativeModule.drainPendingIntercepts() ?? [];
+}
+
 export function addPendingUnlockListener(
   handler: () => void
 ): { remove: () => void } | null {

@@ -11,12 +11,10 @@ import Foundation
 class DeviceActivityMonitorExtension: DeviceActivityMonitor {
   // CONFIGURE: Replace with your App Group identifier
   private let appGroupIdentifier = "APP_GROUP_PLACEHOLDER"
+  // Holds the grant's wall-clock expiration (Date); kept in sync with
+  // ExpoAppBlockerModule.swift. Presence + a future date means an unlock is active.
   private let temporaryUnlockKey = "appBlocker.temporaryUnlock.v1"
   private let blockConfigStorageKey = "appBlocker.blockConfiguration.v1"
-  // Keep these in sync with ExpoAppBlockerModule.swift. temporaryUnlockKey holds the
-  // budget in seconds; usageConsumedKey accumulates consumed seconds.
-  private let usageStepEventPrefix = "appBlocker.usageStep."
-  private let usageConsumedKey = "appBlocker.usageConsumedSeconds.v1"
 
   private let store = ManagedSettingsStore()
   private var sharedDefaults: UserDefaults?
@@ -28,61 +26,20 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
 
   override func intervalDidEnd(for activity: DeviceActivityName) {
     super.intervalDidEnd(for: activity)
-    // Intentionally a no-op. Re-block is driven solely by eventDidReachThreshold
-    // (the usage budget). We must NOT clear unlock state or reapply the shield here:
-    // stopMonitoring() during a re-grant also fires intervalDidEnd, which would wipe
-    // the freshly-granted budget and re-shield the apps immediately after the user
-    // earned time. (Tradeoff: an unspent budget is not force-cleared at the daily
-    // schedule boundary — an acceptable edge case.)
+    // The schedule's interval ends at the grant's wall-clock expiration → re-block.
+    // Guard against the spurious intervalDidEnd that stopMonitoring() fires during a
+    // re-grant: if the stored expiration is still in the future this is a re-arm, not
+    // an expiry, so leave the freshly-granted unlock intact.
+    if let expiration = sharedDefaults?.object(forKey: temporaryUnlockKey) as? Date,
+       Date() < expiration {
+      return
+    }
+    sharedDefaults?.removeObject(forKey: temporaryUnlockKey)
+    reapplyBlockConfiguration()
   }
 
   override func intervalDidStart(for activity: DeviceActivityName) {
     super.intervalDidStart(for: activity)
-  }
-
-  // Fires once per usage step (threshold = N seconds of measured blocked-app use).
-  // We write the consumed-second count back to the App Group so the host app can
-  // show a live, pause-when-away countdown; once consumed reaches the budget we
-  // clear the unlock and re-apply the shield.
-  override func eventDidReachThreshold(
-    _ event: DeviceActivityEvent.Name,
-    activity: DeviceActivityName
-  ) {
-    super.eventDidReachThreshold(event, activity: activity)
-
-    let stepSeconds = parseStepSeconds(from: event.rawValue)
-    guard stepSeconds > 0 else {
-      // Unknown event — treat as a full relock to stay safe.
-      clearUnlockState()
-      reapplyBlockConfiguration()
-      return
-    }
-
-    // Record consumed seconds monotonically (steps can arrive out of order).
-    let prev = sharedDefaults?.integer(forKey: usageConsumedKey) ?? 0
-    if stepSeconds > prev {
-      sharedDefaults?.set(stepSeconds, forKey: usageConsumedKey)
-    }
-
-    let budgetSeconds = sharedDefaults?.integer(forKey: temporaryUnlockKey) ?? 0
-    if budgetSeconds <= 0 || stepSeconds >= budgetSeconds {
-      // Budget fully spent — re-block.
-      clearUnlockState()
-      reapplyBlockConfiguration()
-    }
-  }
-
-  /// Extract the threshold seconds from an event name like `appBlocker.usageStep.90`;
-  /// 0 if not a usage step.
-  private func parseStepSeconds(from rawName: String) -> Int {
-    guard rawName.hasPrefix(usageStepEventPrefix) else { return 0 }
-    let suffix = rawName.dropFirst(usageStepEventPrefix.count)
-    return Int(suffix) ?? 0
-  }
-
-  private func clearUnlockState() {
-    sharedDefaults?.removeObject(forKey: temporaryUnlockKey)
-    sharedDefaults?.removeObject(forKey: usageConsumedKey)
   }
 
   private func reapplyBlockConfiguration() {

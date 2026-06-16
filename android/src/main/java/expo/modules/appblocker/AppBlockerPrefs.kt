@@ -2,9 +2,15 @@ package expo.modules.appblocker
 
 import android.content.Context
 import android.content.SharedPreferences
+import org.json.JSONArray
+import org.json.JSONObject
 
 object AppBlockerPrefs {
   const val PREFS_NAME = "expo_app_blocker_prefs"
+  private const val KEY_PENDING_INTERCEPTS = "pending_intercepts"
+  private const val KEY_LAST_INTERCEPT_TS = "last_intercept_ts"
+  private const val INTERCEPT_DEBOUNCE_MS = 2_000L
+  private const val MAX_PENDING_INTERCEPTS = 200
   const val KEY_BLOCKED_PACKAGES = "blocked_packages"
   private const val KEY_OVERLAY_TITLE = "overlay_title"
   private const val KEY_OVERLAY_TEXT = "overlay_text"
@@ -148,6 +154,59 @@ object AppBlockerPrefs {
 
   fun getNotificationText(context: Context): String =
     get(context).getString(KEY_NOTIFICATION_TEXT, null) ?: "{appName} is blocked. Tap to manage."
+
+  /**
+   * Queue one OS-level block event for the app to drain into
+   * `blocker_intercepts`. Debounced globally so the poll loop can't emit
+   * duplicates for a single block, and capped to bound storage.
+   */
+  fun appendIntercept(context: Context, appName: String, interceptedAtMs: Long) {
+    val prefs = get(context)
+    val lastTs = prefs.getLong(KEY_LAST_INTERCEPT_TS, 0L)
+    if (lastTs > 0L && interceptedAtMs - lastTs < INTERCEPT_DEBOUNCE_MS) return
+
+    val arr = try {
+      JSONArray(prefs.getString(KEY_PENDING_INTERCEPTS, "[]"))
+    } catch (e: Exception) {
+      JSONArray()
+    }
+    arr.put(JSONObject().put("appName", appName).put("interceptedAt", interceptedAtMs))
+
+    val trimmed = if (arr.length() > MAX_PENDING_INTERCEPTS) {
+      JSONArray().also { t ->
+        for (i in (arr.length() - MAX_PENDING_INTERCEPTS) until arr.length()) t.put(arr.get(i))
+      }
+    } else {
+      arr
+    }
+
+    prefs.edit()
+      .putString(KEY_PENDING_INTERCEPTS, trimmed.toString())
+      .putLong(KEY_LAST_INTERCEPT_TS, interceptedAtMs)
+      .apply()
+  }
+
+  /** Return and clear the queued block events. */
+  fun drainIntercepts(context: Context): List<Map<String, Any>> {
+    val prefs = get(context)
+    val arr = try {
+      JSONArray(prefs.getString(KEY_PENDING_INTERCEPTS, "[]"))
+    } catch (e: Exception) {
+      JSONArray()
+    }
+    val out = ArrayList<Map<String, Any>>(arr.length())
+    for (i in 0 until arr.length()) {
+      val o = arr.getJSONObject(i)
+      out.add(
+        mapOf(
+          "appName" to o.optString("appName", ""),
+          "interceptedAt" to o.optDouble("interceptedAt"),
+        )
+      )
+    }
+    if (arr.length() > 0) prefs.edit().remove(KEY_PENDING_INTERCEPTS).apply()
+    return out
+  }
 
   private fun putNullableFloat(editor: SharedPreferences.Editor, key: String, value: Float?) {
     if (value != null) editor.putFloat(key, value) else editor.remove(key)

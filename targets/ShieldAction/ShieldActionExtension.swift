@@ -6,6 +6,10 @@ import UserNotifications
 class ShieldActionExtension: ShieldActionDelegate {
   private let appGroupIdentifier = "APP_GROUP_PLACEHOLDER"
   private let pendingUnlockKey = "appBlocker.pendingUnlock.v1"
+  private let pendingInterceptsKey = "appBlocker.pendingIntercepts.v1"
+  private let lastInterceptTsKey = "appBlocker.lastInterceptTs.v1"
+  private let interceptDebounceMs: Double = 2_000
+  private let maxPendingIntercepts = 200
   private let pendingUnlockNotificationIdentifier = "expo.appblocker.pendingUnlock.local"
   // Notification copy + behavior — configurable via plugin options so apps
   // can localize without forking. Defaults preserve the original English
@@ -27,6 +31,11 @@ class ShieldActionExtension: ShieldActionDelegate {
   }
 
   private func handleAction(_ action: ShieldAction, completionHandler: @escaping (ShieldActionResponse) -> Void) {
+    // Any interaction with the shield is a confirmed block event. The
+    // ShieldConfiguration data source is cached by the system and not
+    // re-invoked per open, so this — the action handler, which fires every
+    // time — is the reliable place to record the block.
+    recordIntercept()
     switch action {
     case .primaryButtonPressed:
       setPendingUnlockFlag()
@@ -52,6 +61,34 @@ class ShieldActionExtension: ShieldActionDelegate {
     DispatchQueue.main.async {
       completionHandler(response)
     }
+  }
+
+  /// Queue a block event (JSON-string queue in the App Group), debounced,
+  /// for the app to drain into `blocker_intercepts`.
+  private func recordIntercept() {
+    guard let defaults = UserDefaults(suiteName: appGroupIdentifier) else { return }
+    defaults.synchronize()
+
+    let nowMs = Date().timeIntervalSince1970 * 1000.0
+    let lastMs = defaults.double(forKey: lastInterceptTsKey)
+    if lastMs > 0, (nowMs - lastMs) < interceptDebounceMs { return }
+
+    var queue: [[String: Any]] = []
+    if let json = defaults.string(forKey: pendingInterceptsKey),
+       let data = json.data(using: .utf8),
+       let parsed = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
+      queue = parsed
+    }
+    queue.append(["appName": NSNull(), "interceptedAt": nowMs])
+    if queue.count > maxPendingIntercepts {
+      queue = Array(queue.suffix(maxPendingIntercepts))
+    }
+    if let data = try? JSONSerialization.data(withJSONObject: queue),
+       let json = String(data: data, encoding: .utf8) {
+      defaults.set(json, forKey: pendingInterceptsKey)
+    }
+    defaults.set(nowMs, forKey: lastInterceptTsKey)
+    defaults.synchronize()
   }
 
   private func setPendingUnlockFlag() {
