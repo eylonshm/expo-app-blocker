@@ -24,22 +24,36 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
     sharedDefaults = UserDefaults(suiteName: appGroupIdentifier)
   }
 
+  // Fires at `intervalEnd − warningTime`, which the host aligns to the grant's
+  // real expiration. This is the ONLY callback that fires for sub-15-min grants
+  // (Apple's schedule interval minimum is 15 min), so it's the primary
+  // re-block-while-inside path. `intervalDidEnd` covers the ≥15-min case + safety.
+  override func intervalWillEndWarning(for activity: DeviceActivityName) {
+    super.intervalWillEndWarning(for: activity)
+    relockIfExpired()
+  }
+
   override func intervalDidEnd(for activity: DeviceActivityName) {
     super.intervalDidEnd(for: activity)
-    // The schedule's interval ends at the grant's wall-clock expiration → re-block.
-    // Guard against the spurious intervalDidEnd that stopMonitoring() fires during a
-    // re-grant: if the stored expiration is still in the future this is a re-arm, not
-    // an expiry, so leave the freshly-granted unlock intact.
-    if let expiration = sharedDefaults?.object(forKey: temporaryUnlockKey) as? Date,
-       Date() < expiration {
-      return
-    }
-    sharedDefaults?.removeObject(forKey: temporaryUnlockKey)
-    reapplyBlockConfiguration()
+    relockIfExpired()
   }
 
   override func intervalDidStart(for activity: DeviceActivityName) {
     super.intervalDidStart(for: activity)
+  }
+
+  /// Re-apply the shield once the grant's wall-clock expiration has arrived.
+  /// Guards against the spurious callback that `stopMonitoring()` fires during a
+  /// re-grant: if the stored expiration is still comfortably in the future
+  /// (> 60s), this is a re-arm — not an expiry — so the fresh grant is kept.
+  /// The 60s tolerance also absorbs callback/clock skew at the real boundary.
+  private func relockIfExpired() {
+    if let expiration = sharedDefaults?.object(forKey: temporaryUnlockKey) as? Date,
+       expiration.timeIntervalSinceNow > 60 {
+      return
+    }
+    sharedDefaults?.removeObject(forKey: temporaryUnlockKey)
+    reapplyBlockConfiguration()
   }
 
   private func reapplyBlockConfiguration() {

@@ -540,21 +540,42 @@ public class ExpoAppBlockerModule: Module {
     let activityName = DeviceActivityName(unlockActivityName)
     let calendar = Calendar.current
     let now = Date()
-    let startComponents = calendar.dateComponents([.hour, .minute, .second], from: now)
-    let endComponents = calendar.dateComponents([.hour, .minute, .second], from: expirationDate)
-    let nowDay = calendar.startOfDay(for: now)
-    let expirationDay = calendar.startOfDay(for: expirationDate)
 
+    // Apple rejects DeviceActivitySchedule intervals shorter than 15 minutes, so
+    // a short earned grant can't simply end the interval at its real expiration.
+    // Pad the interval to the 15-min minimum and use `warningTime` so
+    // `intervalWillEndWarning` fires at the REAL expiration — letting the monitor
+    // re-block while the user is still inside the blocked app (sub-15-min grants).
+    // Grants ≥ 15 min end the interval exactly at expiration (no warning needed).
+    let minIntervalSec: TimeInterval = 15 * 60
+    let durationSec = max(0, expirationDate.timeIntervalSince(now))
+
+    let intervalEndDate: Date
+    var warningSec = 0
+    if durationSec >= minIntervalSec {
+      intervalEndDate = expirationDate
+    } else {
+      intervalEndDate = now.addingTimeInterval(minIntervalSec)
+      warningSec = Int(intervalEndDate.timeIntervalSince(expirationDate).rounded())
+    }
+
+    let startComponents = calendar.dateComponents([.hour, .minute, .second], from: now)
     let schedule: DeviceActivitySchedule
-    if nowDay == expirationDay {
+
+    if calendar.isDate(now, inSameDayAs: intervalEndDate) {
+      let endComponents = calendar.dateComponents([.hour, .minute, .second], from: intervalEndDate)
+      let warning: DateComponents? =
+        warningSec > 0 ? DateComponents(minute: warningSec / 60, second: warningSec % 60) : nil
       schedule = DeviceActivitySchedule(
         intervalStart: startComponents,
         intervalEnd: endComponents,
-        repeats: false
+        repeats: false,
+        warningTime: warning
       )
     } else {
-      // Expiration crosses midnight — cap the interval at end-of-day; the host
-      // relock handles the remainder on next foreground.
+      // Padded interval crosses midnight — cap at end-of-day (no warning); the
+      // host-side relock (getRemainingUnlockTime poll / foreground check) covers
+      // the remainder on next return to the app.
       schedule = DeviceActivitySchedule(
         intervalStart: startComponents,
         intervalEnd: DateComponents(hour: 23, minute: 59, second: 59),
