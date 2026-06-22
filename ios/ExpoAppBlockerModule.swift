@@ -14,10 +14,31 @@ public class ExpoAppBlockerModule: Module {
   private var sharedDefaults: UserDefaults?
   private let userDefaults = UserDefaults.standard
   private let blockConfigStorageKey = "appBlocker.blockConfiguration.v1"
-  // Stores the grant's wall-clock expiration (Date). Presence + a future date means
-  // a temporary unlock is active; the shield is re-applied once it passes.
+  // Stores the granted earned-time budget in **seconds** (Int). Presence with a
+  // value > 0 means a temporary unlock is active. Enforcement is usage-based: the
+  // shield is re-applied by the DeviceActivityMonitor once cumulative foreground
+  // usage of the blocked apps reaches the budget (see `startUsageBasedRelock`). The
+  // budget pauses when no blocked app is in use and resumes on return.
   private let temporaryUnlockKey = "appBlocker.temporaryUnlock.v1"
+  // Consumed seconds of the active unlock, written by the monitor extension as
+  // blocked-app usage accrues. Remaining = budget − consumed.
+  private let usageConsumedKey = "appBlocker.usageConsumedSeconds.v1"
+  // Wall-clock instant the active budget was granted (Date). Used for the daily
+  // reset (budget is cleared when the calendar day changes) and as the upper bound
+  // for the monitor's premature-fire guard (usage can't exceed elapsed wall-clock).
+  private let unlockGrantedAtKey = "appBlocker.unlockGrantedAt.v1"
   private let unlockActivityName = "appBlocker.temporaryUnlock"
+  // Sub-minute usage steps. We register one DeviceActivityEvent per `usageStepSeconds`
+  // of the budget (threshold = k×step seconds of measured usage). Each step's
+  // eventDidReachThreshold lets the monitor write consumed SECONDS back to the App
+  // Group. The event name carries its threshold (`appBlocker.usageStep.<seconds>`).
+  private let usageStepEventPrefix = "appBlocker.usageStep."
+  // Apple's usage thresholds are coarse/unreliable below ~a minute; 30s is a best-
+  // effort finer grain backstopped by later steps and the final (== budget) event.
+  private let usageStepSeconds = 30
+  // Cap on registered step events; the step auto-coarsens for large budgets so the
+  // event count stays under this (Apple degrades with too many events).
+  private let maxUsageSteps = 60
   private let pendingUnlockKey = "appBlocker.pendingUnlock.v1"
   private let pendingInterceptsKey = "appBlocker.pendingIntercepts.v1"
   private let minimumTemporaryUnlockMinutes = 1
@@ -220,11 +241,14 @@ public class ExpoAppBlockerModule: Module {
           return
         }
 
-        // Wall-clock expiry is the source of truth. (Usage-based relock was
-        // removed: Apple won't fire DeviceActivity usage thresholds under ~15 min,
-        // so short earned-time budgets never re-blocked and the countdown froze.)
-        let expirationDate = Date().addingTimeInterval(TimeInterval(sanitizedDurationMinutes * 60))
-        self.sharedDefaults?.set(expirationDate, forKey: self.temporaryUnlockKey)
+        // Usage-based budget is the source of truth: the grant is spent only while a
+        // blocked app is in the foreground, so it pauses on leave and resumes on
+        // return. (See `startUsageBasedRelock`.) The budget is cleared at midnight.
+        let budgetSeconds = sanitizedDurationMinutes * 60
+        let grantedAt = Date()
+        self.sharedDefaults?.set(budgetSeconds, forKey: self.temporaryUnlockKey)
+        self.sharedDefaults?.set(0, forKey: self.usageConsumedKey)
+        self.sharedDefaults?.set(grantedAt, forKey: self.unlockGrantedAtKey)
 
         DispatchQueue.main.async {
           self.store.shield.applications = nil
@@ -232,49 +256,43 @@ public class ExpoAppBlockerModule: Module {
           self.store.shield.webDomains = nil
         }
 
-        // Best-effort schedule: only fires for grants ≥ ~15 min (Apple's minimum).
-        // Shorter grants throw here and are re-blocked by the host instead —
-        // getRemainingUnlockTime and the foreground checkAndApplyUnlockState relock
-        // once the expiration passes.
+        // Arm usage-threshold monitoring so the monitor re-blocks once measured
+        // blocked-app usage reaches the budget. Non-fatal if it can't start — the
+        // host-side relock (getRemainingUnlockTime poll / foreground check) is a
+        // backstop once the monitor reports consumption.
         do {
-          try self.scheduleRelockActivity(expirationDate: expirationDate)
+          try self.startUsageBasedRelock(budgetSeconds: budgetSeconds)
         } catch {
-          print("[AppBlocker] Schedule relock failed (duration may be too short): \(error.localizedDescription)")
+          print("[AppBlocker] startUsageBasedRelock failed: \(error.localizedDescription)")
         }
 
         DispatchQueue.main.async {
           promise.resolve([
             "unlocked": true,
-            "expiresAt": expirationDate.timeIntervalSince1970
+            "expiresAt": grantedAt.addingTimeInterval(TimeInterval(budgetSeconds)).timeIntervalSince1970
           ])
         }
       }
     }
 
     Function("isTemporarilyUnlocked") { () -> Bool in
-      guard let expirationDate = self.sharedDefaults?.object(forKey: self.temporaryUnlockKey) as? Date else {
-        return false
-      }
-      if Date() < expirationDate {
-        return true
-      }
-      self.relockApps()
-      return false
+      return self.remainingUnlockSeconds() > 0
     }
 
-    // Wall-clock remaining seconds, counting down in real time. When the host app
-    // polls this (e.g. the blocking-status banner, every second) and the grant has
-    // expired, it re-applies the shield — the primary relock path for grants under
-    // ~15 min, which Apple's DeviceActivity cannot enforce on its own.
+    // Remaining earned-time seconds = granted budget − measured blocked-app usage.
+    // Stays flat while no blocked app is in use (the budget pauses on leave) and
+    // drops as the monitor reports consumption. When the host polls this (e.g. the
+    // blocking-status banner) and it has reached 0 — budget spent or the day rolled
+    // over — the shield is re-applied as a backstop to the monitor.
     Function("getRemainingUnlockTime") { () -> Int in
-      guard let expirationDate = self.sharedDefaults?.object(forKey: self.temporaryUnlockKey) as? Date else {
-        return 0
-      }
-      let remaining = expirationDate.timeIntervalSince(Date())
+      let hadBudget = ((self.sharedDefaults?.object(forKey: self.temporaryUnlockKey) as? Int) ?? 0) > 0
+      let remaining = self.remainingUnlockSeconds()
       if remaining > 0 {
-        return Int(remaining)
+        return remaining
       }
-      self.relockApps()
+      if hadBudget {
+        self.relockApps()
+      }
       return 0
     }
 
@@ -371,24 +389,23 @@ public class ExpoAppBlockerModule: Module {
 
     ensureLoadedPersistedConfig()
 
-    if let expirationDate = sharedDefaults?.object(forKey: temporaryUnlockKey) as? Date {
-      let remaining = expirationDate.timeIntervalSince(Date())
-
-      if remaining > 0 {
-        // Unlock still active — keep the shield off and (re-)arm the schedule so a
-        // grant ≥ ~15 min re-blocks even while the user stays in a blocked app.
+    let budgetSeconds = (sharedDefaults?.object(forKey: temporaryUnlockKey) as? Int) ?? 0
+    if budgetSeconds > 0 {
+      if remainingUnlockSeconds() > 0 {
+        // Budget still available (and the day hasn't rolled over) — keep the shield
+        // off. Do NOT re-arm monitoring here: DeviceActivity monitoring is system-
+        // level and survives app termination, so the schedule registered at grant
+        // time is still running. Re-registering would restart the usage interval at
+        // "now" and discard accrued usage — letting a user reset their budget by
+        // bouncing back to this app. The monitor re-blocks on its own once usage
+        // reaches the budget; this branch only ensures the shield stays off.
         DispatchQueue.main.async {
           self.store.shield.applications = nil
           self.store.shield.applicationCategories = nil
           self.store.shield.webDomains = nil
         }
-
-        do {
-          try scheduleRelockActivity(expirationDate: expirationDate)
-        } catch {
-          relockApps()
-        }
       } else {
+        // Budget spent or cleared by the daily reset.
         relockApps()
       }
     } else if let config = currentBlockConfig {
@@ -522,68 +539,85 @@ public class ExpoAppBlockerModule: Module {
 
   // MARK: - Activity Scheduling
 
-  /// Arm a time-based re-block: a `DeviceActivitySchedule` whose interval ends at
-  /// `expirationDate`. The DeviceActivityMonitor's `intervalDidEnd` re-applies the
-  /// shield at that wall-clock moment, so a grant re-blocks even while the user
-  /// stays in a blocked app.
+  /// Start usage-based monitoring: re-apply the shield once cumulative foreground
+  /// usage of the blocked apps reaches `budgetSeconds`. iOS counts only active usage,
+  /// so the budget naturally pauses when the apps aren't in use and resumes on return.
   ///
-  /// Apple requires the interval to span at least ~15 minutes, so grants shorter
-  /// than that make `startMonitoring` throw — the caller treats that as non-fatal
-  /// and relies on the host-side relock (getRemainingUnlockTime poll /
-  /// checkAndApplyUnlockState on foreground) once the expiration passes.
-  private func scheduleRelockActivity(expirationDate: Date) throws {
+  /// We register a series of threshold events stepping by `usageStepSeconds` (auto-
+  /// coarsened so the count stays under `maxUsageSteps`). The event name carries its
+  /// threshold in seconds (`usageStepEventPrefix + <seconds>`). Each step's
+  /// `eventDidReachThreshold` (in the DeviceActivityMonitor extension) writes the
+  /// consumed-second count to the App Group — giving the host app a sub-minute,
+  /// pause-when-away consumed counter (`getRemainingUnlockTime`). The final step
+  /// (== budget) is where the monitor re-applies the shield.
+  ///
+  /// The interval ends at 23:59:59 so the monitor's `intervalDidEnd` clears any
+  /// unspent budget at the day boundary (earned time does not carry across midnight).
+  /// `repeats: false` because we re-register on every unlock.
+  ///
+  /// Note: Apple's usage thresholds are coarse/unreliable below ~a minute, so the
+  /// finest steps may fire late or be skipped — later steps and the final threshold
+  /// still re-block, bounding overshoot to roughly one step.
+  private func startUsageBasedRelock(budgetSeconds: Int) throws {
     scheduleLock.lock()
     defer { scheduleLock.unlock() }
 
     cancelRelockActivityLocked()
 
-    let activityName = DeviceActivityName(unlockActivityName)
-    let calendar = Calendar.current
+    guard let config = currentBlockConfig else {
+      print("[AppBlocker] startUsageBasedRelock: no active config, monitoring not started")
+      return
+    }
+    let appTokens = Set(config.items.compactMap { $0.appToken })
+    let categoryTokens = Set(config.items.compactMap { $0.categoryToken })
+    let webDomainTokens = Set(config.items.compactMap { $0.webDomainToken })
+
+    guard !appTokens.isEmpty || !categoryTokens.isEmpty || !webDomainTokens.isEmpty else {
+      print("[AppBlocker] startUsageBasedRelock: no blockable tokens, monitoring not started")
+      return
+    }
+
+    let budget = max(1, budgetSeconds)
+    // Step by usageStepSeconds, but coarsen so we never exceed maxUsageSteps events.
+    let step = max(usageStepSeconds, Int(ceil(Double(budget) / Double(maxUsageSteps))))
+    var thresholds: [Int] = []
+    var t = step
+    while t < budget {
+      thresholds.append(t)
+      t += step
+    }
+    thresholds.append(budget) // always include the exact budget as the final re-block
+
+    var events: [DeviceActivityEvent.Name: DeviceActivityEvent] = [:]
+    for seconds in thresholds {
+      events[DeviceActivityEvent.Name("\(usageStepEventPrefix)\(seconds)")] = DeviceActivityEvent(
+        applications: appTokens,
+        categories: categoryTokens,
+        webDomains: webDomainTokens,
+        threshold: dateComponents(fromSeconds: seconds)
+      )
+    }
+
+    // CRITICAL: the interval must start ~now, not at midnight. DeviceActivityEvent
+    // thresholds measure usage accumulated *within the interval, from its start*. An
+    // all-day [00:00, 23:59] interval would count usage since midnight — so any prior
+    // blocked-app use today would have already crossed the thresholds before monitoring
+    // began, and the system never fires a (new) crossing → the shield never re-applies.
+    // Starting the interval at the current time makes thresholds count from the unlock
+    // moment. repeats:false because we re-register on every unlock.
     let now = Date()
+    let startComps = Calendar.current.dateComponents([.hour, .minute, .second], from: now)
+    let schedule = DeviceActivitySchedule(
+      intervalStart: startComps,
+      intervalEnd: DateComponents(hour: 23, minute: 59, second: 59),
+      repeats: false
+    )
 
-    // Apple rejects DeviceActivitySchedule intervals shorter than 15 minutes, so
-    // a short earned grant can't simply end the interval at its real expiration.
-    // Pad the interval to the 15-min minimum and use `warningTime` so
-    // `intervalWillEndWarning` fires at the REAL expiration — letting the monitor
-    // re-block while the user is still inside the blocked app (sub-15-min grants).
-    // Grants ≥ 15 min end the interval exactly at expiration (no warning needed).
-    let minIntervalSec: TimeInterval = 15 * 60
-    let durationSec = max(0, expirationDate.timeIntervalSince(now))
-
-    let intervalEndDate: Date
-    var warningSec = 0
-    if durationSec >= minIntervalSec {
-      intervalEndDate = expirationDate
-    } else {
-      intervalEndDate = now.addingTimeInterval(minIntervalSec)
-      warningSec = Int(intervalEndDate.timeIntervalSince(expirationDate).rounded())
-    }
-
-    let startComponents = calendar.dateComponents([.hour, .minute, .second], from: now)
-    let schedule: DeviceActivitySchedule
-
-    if calendar.isDate(now, inSameDayAs: intervalEndDate) {
-      let endComponents = calendar.dateComponents([.hour, .minute, .second], from: intervalEndDate)
-      let warning: DateComponents? =
-        warningSec > 0 ? DateComponents(minute: warningSec / 60, second: warningSec % 60) : nil
-      schedule = DeviceActivitySchedule(
-        intervalStart: startComponents,
-        intervalEnd: endComponents,
-        repeats: false,
-        warningTime: warning
-      )
-    } else {
-      // Padded interval crosses midnight — cap at end-of-day (no warning); the
-      // host-side relock (getRemainingUnlockTime poll / foreground check) covers
-      // the remainder on next return to the app.
-      schedule = DeviceActivitySchedule(
-        intervalStart: startComponents,
-        intervalEnd: DateComponents(hour: 23, minute: 59, second: 59),
-        repeats: false
-      )
-    }
-
-    try activityCenter.startMonitoring(activityName, during: schedule)
+    try activityCenter.startMonitoring(
+      DeviceActivityName(unlockActivityName),
+      during: schedule,
+      events: events
+    )
   }
 
   private func cancelRelockActivity() {
@@ -601,18 +635,39 @@ public class ExpoAppBlockerModule: Module {
     return remainingUnlockSeconds() > 0
   }
 
-  /// Clear all persisted unlock state (budget + consumed counter).
+  /// Clear all persisted unlock state (budget + consumed counter + grant time).
   private func clearUnlockState() {
     sharedDefaults?.removeObject(forKey: temporaryUnlockKey)
+    sharedDefaults?.removeObject(forKey: usageConsumedKey)
+    sharedDefaults?.removeObject(forKey: unlockGrantedAtKey)
   }
 
-  /// Seconds of earned time still available: wall-clock time until the grant's
-  /// expiration. 0 if no active unlock or it has already expired. Clamped at 0.
+  /// Seconds of earned time still available: the granted budget minus the seconds of
+  /// blocked-app usage the monitor extension has recorded. Returns 0 if there is no
+  /// active unlock, the budget is fully consumed, or the grant is from a previous day
+  /// (earned time does not carry across midnight). Clamped at 0.
   private func remainingUnlockSeconds() -> Int {
-    guard let expirationDate = sharedDefaults?.object(forKey: temporaryUnlockKey) as? Date else {
+    let budgetSeconds = (sharedDefaults?.object(forKey: temporaryUnlockKey) as? Int) ?? 0
+    if budgetSeconds <= 0 { return 0 }
+
+    // Daily reset: a grant made on an earlier calendar day is stale.
+    if let grantedAt = sharedDefaults?.object(forKey: unlockGrantedAtKey) as? Date,
+       !Calendar.current.isDate(grantedAt, inSameDayAs: Date()) {
       return 0
     }
-    return max(0, Int(expirationDate.timeIntervalSince(Date())))
+
+    let consumedSeconds = (sharedDefaults?.object(forKey: usageConsumedKey) as? Int) ?? 0
+    return max(0, budgetSeconds - consumedSeconds)
+  }
+
+  /// Build a DateComponents threshold from a total number of seconds (normalized
+  /// into hour/minute/second so the system reads it cleanly).
+  private func dateComponents(fromSeconds total: Int) -> DateComponents {
+    return DateComponents(
+      hour: total / 3600,
+      minute: (total % 3600) / 60,
+      second: total % 60
+    )
   }
 
 

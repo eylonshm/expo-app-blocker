@@ -11,9 +11,16 @@ import Foundation
 class DeviceActivityMonitorExtension: DeviceActivityMonitor {
   // CONFIGURE: Replace with your App Group identifier
   private let appGroupIdentifier = "APP_GROUP_PLACEHOLDER"
-  // Holds the grant's wall-clock expiration (Date); kept in sync with
-  // ExpoAppBlockerModule.swift. Presence + a future date means an unlock is active.
+  // Granted earned-time budget in SECONDS (Int); kept in sync with
+  // ExpoAppBlockerModule.swift. Presence with value > 0 means an unlock is active.
   private let temporaryUnlockKey = "appBlocker.temporaryUnlock.v1"
+  // Consumed seconds, written here as blocked-app usage thresholds fire.
+  private let usageConsumedKey = "appBlocker.usageConsumedSeconds.v1"
+  // Wall-clock instant the budget was granted (Date) — upper bound for the
+  // premature-fire guard (measured usage can't exceed elapsed wall-clock).
+  private let unlockGrantedAtKey = "appBlocker.unlockGrantedAt.v1"
+  // Usage-step event-name prefix; the suffix is the threshold in seconds.
+  private let usageStepEventPrefix = "appBlocker.usageStep."
   private let blockConfigStorageKey = "appBlocker.blockConfiguration.v1"
 
   private let store = ManagedSettingsStore()
@@ -24,36 +31,83 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
     sharedDefaults = UserDefaults(suiteName: appGroupIdentifier)
   }
 
-  // Fires at `intervalEnd − warningTime`, which the host aligns to the grant's
-  // real expiration. This is the ONLY callback that fires for sub-15-min grants
-  // (Apple's schedule interval minimum is 15 min), so it's the primary
-  // re-block-while-inside path. `intervalDidEnd` covers the ≥15-min case + safety.
-  override func intervalWillEndWarning(for activity: DeviceActivityName) {
-    super.intervalWillEndWarning(for: activity)
-    relockIfExpired()
+  /// Fires once per usage step (threshold = N seconds of measured blocked-app use).
+  /// Records consumed seconds back to the App Group so the host can show a paused,
+  /// pause-when-away countdown; once consumption reaches the budget, re-applies the
+  /// shield. This is the primary pause-on-leave relock path.
+  override func eventDidReachThreshold(
+    _ event: DeviceActivityEvent.Name,
+    activity: DeviceActivityName
+  ) {
+    super.eventDidReachThreshold(event, activity: activity)
+
+    let stepSeconds = parseStepSeconds(from: event.rawValue)
+    guard stepSeconds > 0 else {
+      // Unknown event — treat as a full relock to stay safe.
+      clearUnlockState()
+      reapplyBlockConfiguration()
+      return
+    }
+
+    // Premature-fire guard (iOS-26 bug + clock skew): measured usage can never
+    // exceed the wall-clock elapsed since the grant. If a step claims more usage
+    // than has physically elapsed (+30s tolerance), it's spurious — ignore it.
+    if let grantedAt = sharedDefaults?.object(forKey: unlockGrantedAtKey) as? Date {
+      let elapsed = Date().timeIntervalSince(grantedAt)
+      if Double(stepSeconds) > elapsed + 30 {
+        return
+      }
+    }
+
+    // Record consumed seconds monotonically (steps can arrive out of order).
+    let prev = sharedDefaults?.integer(forKey: usageConsumedKey) ?? 0
+    if stepSeconds > prev {
+      sharedDefaults?.set(stepSeconds, forKey: usageConsumedKey)
+    }
+
+    let budgetSeconds = sharedDefaults?.integer(forKey: temporaryUnlockKey) ?? 0
+    if budgetSeconds <= 0 || stepSeconds >= budgetSeconds {
+      // Budget fully spent — re-block.
+      clearUnlockState()
+      reapplyBlockConfiguration()
+    }
   }
 
+  /// Fires at the schedule's interval end (23:59:59) — the daily reset. Clears any
+  /// unspent budget and re-applies the shield so earned time does not carry across
+  /// midnight.
+  ///
+  /// Guards against the spurious callback that `stopMonitoring()` fires during a
+  /// re-grant: that fire happens whenever the user earns time, not at the day
+  /// boundary, so only honor it in the last couple of minutes before midnight.
   override func intervalDidEnd(for activity: DeviceActivityName) {
     super.intervalDidEnd(for: activity)
-    relockIfExpired()
+
+    let comps = Calendar.current.dateComponents([.hour, .minute], from: Date())
+    guard comps.hour == 23, (comps.minute ?? 0) >= 58 else {
+      return
+    }
+    clearUnlockState()
+    reapplyBlockConfiguration()
   }
 
   override func intervalDidStart(for activity: DeviceActivityName) {
     super.intervalDidStart(for: activity)
   }
 
-  /// Re-apply the shield once the grant's wall-clock expiration has arrived.
-  /// Guards against the spurious callback that `stopMonitoring()` fires during a
-  /// re-grant: if the stored expiration is still comfortably in the future
-  /// (> 60s), this is a re-arm — not an expiry — so the fresh grant is kept.
-  /// The 60s tolerance also absorbs callback/clock skew at the real boundary.
-  private func relockIfExpired() {
-    if let expiration = sharedDefaults?.object(forKey: temporaryUnlockKey) as? Date,
-       expiration.timeIntervalSinceNow > 60 {
-      return
-    }
+  /// Extract the threshold seconds from an event name like `appBlocker.usageStep.90`;
+  /// 0 if the name is not a usage step.
+  private func parseStepSeconds(from rawName: String) -> Int {
+    guard rawName.hasPrefix(usageStepEventPrefix) else { return 0 }
+    let suffix = rawName.dropFirst(usageStepEventPrefix.count)
+    return Int(suffix) ?? 0
+  }
+
+  /// Clear all persisted unlock state (budget + consumed counter + grant time).
+  private func clearUnlockState() {
     sharedDefaults?.removeObject(forKey: temporaryUnlockKey)
-    reapplyBlockConfiguration()
+    sharedDefaults?.removeObject(forKey: usageConsumedKey)
+    sharedDefaults?.removeObject(forKey: unlockGrantedAtKey)
   }
 
   private func reapplyBlockConfiguration() {
