@@ -84,6 +84,8 @@ class OverlayManager(private val context: Context) {
           "&package=${Uri.encode(blockedPackageName)}&reason=${reason.slug}"
       )
     ).apply {
+      // Pin to our own package: another app registering the same scheme must not receive this.
+      setPackage(context.packageName)
       addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
     }
 

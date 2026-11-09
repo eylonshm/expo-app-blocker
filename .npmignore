@@ -3,3 +3,5 @@ build/
 .expo/
 *.tsbuildinfo
 .DS_Store
+.github/
+docs/demo.mp4

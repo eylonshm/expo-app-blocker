@@ -45,12 +45,14 @@ function mergeBlockerPrivacyManifest(config) {
 // ──────────────────────────────────────────────────────────────────────────────
 
 function getAndroidScheme(config, pluginConfig) {
-  if (pluginConfig?.android?.scheme) return pluginConfig.android.scheme;
   const configScheme = Array.isArray(config.scheme) ? config.scheme[0] : config.scheme;
-  if (configScheme) return configScheme;
-  const pkg = config.android?.package;
-  if (pkg) return pkg.replace(/\./g, "-");
-  return null;
+  const scheme = pluginConfig?.android?.scheme || configScheme || config.android?.package?.replace(/\./g, "-");
+  if (!scheme) return null;
+  // RFC 3986 scheme syntax. Also keeps the value safe to write into strings.xml / AndroidManifest.
+  if (!/^[a-zA-Z][a-zA-Z0-9+.-]*$/.test(scheme)) {
+    throw new Error(`[expo-app-blocker] Invalid URL scheme "${scheme}": must match [a-zA-Z][a-zA-Z0-9+.-]*`);
+  }
+  return scheme;
 }
 
 function withAppBlockerAndroid(config, pluginConfig) {
@@ -263,6 +265,9 @@ function withAppBlockerIOS(config, pluginConfig) {
     //    substitution map mirrors the original withDangerousMod block — kept
     //    here so config-eval produces final, build-ready Swift in one pass.
     function hexToRgb(hex) {
+      if (!/^#?[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/.test(hex)) {
+        throw new Error(`[expo-app-blocker] Invalid shield color "${hex}": expected #RRGGBB or #RRGGBBAA`);
+      }
       const h = hex.replace("#", "");
       return {
         r: (parseInt(h.substring(0, 2), 16) / 255).toFixed(3),
@@ -333,17 +338,17 @@ function withAppBlockerIOS(config, pluginConfig) {
     }
 
     const replacements = {
-      "APP_GROUP_PLACEHOLDER": appGroup,
-      "SHIELD_TITLE_PLACEHOLDER": shield.title || "Hold on!",
-      "SHIELD_SUBTITLE_PLACEHOLDER": shield.subtitle || "{appName} is blocked.",
-      "SHIELD_PRIMARY_BUTTON_PLACEHOLDER": shield.primaryButtonLabel || "Earn Free Time",
-      "SHIELD_SECONDARY_BUTTON_PLACEHOLDER": shield.secondaryButtonLabel === null ? "none" : (shield.secondaryButtonLabel || "Not now"),
-      "SHIELD_TEMP_UNLOCK_TITLE_PLACEHOLDER": tempUnlockTitle,
-      "SHIELD_TEMP_UNLOCK_SUBTITLE_PLACEHOLDER": tempUnlockSubtitle,
-      "SHIELD_TEMP_UNLOCK_BUTTON_PLACEHOLDER": tempUnlockButtonLabel,
+      "APP_GROUP_PLACEHOLDER": escapeSwiftString(appGroup),
+      "SHIELD_TITLE_PLACEHOLDER": escapeSwiftString(shield.title || "Hold on!"),
+      "SHIELD_SUBTITLE_PLACEHOLDER": escapeSwiftString(shield.subtitle || "{appName} is blocked."),
+      "SHIELD_PRIMARY_BUTTON_PLACEHOLDER": escapeSwiftString(shield.primaryButtonLabel || "Earn Free Time"),
+      "SHIELD_SECONDARY_BUTTON_PLACEHOLDER": escapeSwiftString(shield.secondaryButtonLabel === null ? "none" : (shield.secondaryButtonLabel || "Not now")),
+      "SHIELD_TEMP_UNLOCK_TITLE_PLACEHOLDER": escapeSwiftString(tempUnlockTitle),
+      "SHIELD_TEMP_UNLOCK_SUBTITLE_PLACEHOLDER": escapeSwiftString(tempUnlockSubtitle),
+      "SHIELD_TEMP_UNLOCK_BUTTON_PLACEHOLDER": escapeSwiftString(tempUnlockButtonLabel),
       "SHIELD_COUNT_SUFFIX_SWIFT_PLACEHOLDER": renderCountSuffixSwift(countSuffixTemplate),
-      "NOTIFICATION_TITLE_PLACEHOLDER": notificationTitle,
-      "NOTIFICATION_BODY_PLACEHOLDER": notificationBody,
+      "NOTIFICATION_TITLE_PLACEHOLDER": escapeSwiftString(notificationTitle),
+      "NOTIFICATION_BODY_PLACEHOLDER": escapeSwiftString(notificationBody),
       "NOTIFICATION_ATTACH_ICON_PLACEHOLDER": notificationAttachIcon,
       "SHIELD_PRIMARY_R_PLACEHOLDER": primaryColor.r,
       "SHIELD_PRIMARY_G_PLACEHOLDER": primaryColor.g,
@@ -369,7 +374,8 @@ function withAppBlockerIOS(config, pluginConfig) {
           const filePath = path.join(dirPath, file);
           let content = fs.readFileSync(filePath, "utf-8");
           for (const [key, value] of Object.entries(replacements)) {
-            content = content.replace(new RegExp(key, "g"), value);
+            // Function replacer: `$&`, `$1`… in user-supplied values must stay literal.
+            content = content.replace(new RegExp(key, "g"), () => value);
           }
           fs.writeFileSync(filePath, content);
         }

@@ -147,11 +147,12 @@ class ExpoAppBlockerModule : Module() {
     // PendingIntent needed (and SCHEDULE_EXACT_ALARM would require a
     // permission apps otherwise don't need just for this).
     Function("restartApp") { deepLink: String? ->
-      val intent = if (!deepLink.isNullOrEmpty()) {
-        Intent(Intent.ACTION_VIEW, Uri.parse(deepLink))
-      } else {
-        context.packageManager.getLaunchIntentForPackage(context.packageName)
-      }
+      // Deep link is pinned to our own package so the relaunch can't be hijacked
+      // by another app's scheme; falls back to the launcher if we don't handle it.
+      val intent = deepLink?.takeIf { it.isNotEmpty() }
+        ?.let { Intent(Intent.ACTION_VIEW, Uri.parse(it)).setPackage(context.packageName) }
+        ?.takeIf { it.resolveActivity(context.packageManager) != null }
+        ?: context.packageManager.getLaunchIntentForPackage(context.packageName)
       if (intent == null) {
         Log.e(TAG, "restartApp: no launch intent resolvable, cannot self-heal")
         return@Function

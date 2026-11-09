@@ -133,6 +133,8 @@ class AppBlockerService : Service() {
           "&package=${Uri.encode(packageName)}&reason=${reason.slug}"
       )
     ).apply {
+      // Pin to our own package: another app registering the same scheme must not receive this.
+      setPackage(this@AppBlockerService.packageName)
       addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
     }
 
