@@ -29,7 +29,7 @@
     "url": "https://github.com/eylonshm/expo-app-blocker/issues"
   },
   "dependencies": {
-    "@bacons/apple-targets": "^4.0.0"
+    "@bacons/apple-targets": "^5.0.0"
   },
   "peerDependencies": {
     "expo": ">=54.0.0",
