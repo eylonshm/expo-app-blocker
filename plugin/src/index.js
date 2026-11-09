@@ -331,6 +331,16 @@ function withAppBlockerIOS(config, pluginConfig) {
         .replace(/\n/g, "\\n")
         .replace(/\r/g, "\\r");
     }
+    // Same safety for the plain copy placeholders, but keeps valid Swift escapes
+    // (`\n`, `\t`, `\"`, `\\`, `\u{..}`…) users already rely on. Any other
+    // backslash (incl. `\(` interpolation) is doubled and bare quotes/newlines
+    // are escaped, so the value can never leave the string literal.
+    function escapeSwiftCopy(s) {
+      return String(s).replace(
+        /\\(?:u\{[0-9a-fA-F]{1,8}\}|[ntr0\\"'])|\\|"|\n|\r/g,
+        (m) => (m.length > 1 ? m : { "\\": "\\\\", '"': '\\"', "\n": "\\n", "\r": "\\r" }[m]),
+      );
+    }
     function renderCountSuffixSwift(template) {
       if (!template) return '""';
       const escaped = escapeSwiftString(template);
@@ -338,17 +348,17 @@ function withAppBlockerIOS(config, pluginConfig) {
     }
 
     const replacements = {
-      "APP_GROUP_PLACEHOLDER": escapeSwiftString(appGroup),
-      "SHIELD_TITLE_PLACEHOLDER": escapeSwiftString(shield.title || "Hold on!"),
-      "SHIELD_SUBTITLE_PLACEHOLDER": escapeSwiftString(shield.subtitle || "{appName} is blocked."),
-      "SHIELD_PRIMARY_BUTTON_PLACEHOLDER": escapeSwiftString(shield.primaryButtonLabel || "Earn Free Time"),
-      "SHIELD_SECONDARY_BUTTON_PLACEHOLDER": escapeSwiftString(shield.secondaryButtonLabel === null ? "none" : (shield.secondaryButtonLabel || "Not now")),
-      "SHIELD_TEMP_UNLOCK_TITLE_PLACEHOLDER": escapeSwiftString(tempUnlockTitle),
-      "SHIELD_TEMP_UNLOCK_SUBTITLE_PLACEHOLDER": escapeSwiftString(tempUnlockSubtitle),
-      "SHIELD_TEMP_UNLOCK_BUTTON_PLACEHOLDER": escapeSwiftString(tempUnlockButtonLabel),
+      "APP_GROUP_PLACEHOLDER": escapeSwiftCopy(appGroup),
+      "SHIELD_TITLE_PLACEHOLDER": escapeSwiftCopy(shield.title || "Hold on!"),
+      "SHIELD_SUBTITLE_PLACEHOLDER": escapeSwiftCopy(shield.subtitle || "{appName} is blocked."),
+      "SHIELD_PRIMARY_BUTTON_PLACEHOLDER": escapeSwiftCopy(shield.primaryButtonLabel || "Earn Free Time"),
+      "SHIELD_SECONDARY_BUTTON_PLACEHOLDER": escapeSwiftCopy(shield.secondaryButtonLabel === null ? "none" : (shield.secondaryButtonLabel || "Not now")),
+      "SHIELD_TEMP_UNLOCK_TITLE_PLACEHOLDER": escapeSwiftCopy(tempUnlockTitle),
+      "SHIELD_TEMP_UNLOCK_SUBTITLE_PLACEHOLDER": escapeSwiftCopy(tempUnlockSubtitle),
+      "SHIELD_TEMP_UNLOCK_BUTTON_PLACEHOLDER": escapeSwiftCopy(tempUnlockButtonLabel),
       "SHIELD_COUNT_SUFFIX_SWIFT_PLACEHOLDER": renderCountSuffixSwift(countSuffixTemplate),
-      "NOTIFICATION_TITLE_PLACEHOLDER": escapeSwiftString(notificationTitle),
-      "NOTIFICATION_BODY_PLACEHOLDER": escapeSwiftString(notificationBody),
+      "NOTIFICATION_TITLE_PLACEHOLDER": escapeSwiftCopy(notificationTitle),
+      "NOTIFICATION_BODY_PLACEHOLDER": escapeSwiftCopy(notificationBody),
       "NOTIFICATION_ATTACH_ICON_PLACEHOLDER": notificationAttachIcon,
       "SHIELD_PRIMARY_R_PLACEHOLDER": primaryColor.r,
       "SHIELD_PRIMARY_G_PLACEHOLDER": primaryColor.g,

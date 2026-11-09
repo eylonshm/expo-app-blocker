@@ -8,6 +8,10 @@ on:
 jobs:
   stale:
     runs-on: ubuntu-latest
+    # Repo default GITHUB_TOKEN is read-only; stale must label, comment and close.
+    permissions:
+      issues: write
+      pull-requests: write
     steps:
       - uses: actions/stale@v10
         with:
