@@ -10,14 +10,14 @@ jobs:
     if: "!startsWith(github.event.head_commit.message, 'v')"
     permissions:
       contents: write
-      id-token: write # npm provenance attestation
+      id-token: write # npm trusted publishing (OIDC) + provenance
 
     steps:
       - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 24 # trusted publishing needs npm >= 11.5.1
           registry-url: https://registry.npmjs.org
 
       - name: Determine version bump
@@ -52,9 +52,8 @@ jobs:
         id: bump
 
       - name: Publish to npm
+        # Authenticates via OIDC trusted publishing (configured on npmjs.com) - no long-lived token.
         run: npm publish --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Create GitHub Release
         env:
