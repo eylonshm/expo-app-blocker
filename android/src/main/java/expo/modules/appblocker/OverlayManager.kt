@@ -62,7 +62,9 @@ class OverlayManager(private val context: Context) {
    * the poll loop. A visible overlay window keeps the process classed as visible.
    */
   fun showKeepAlive() {
-    if (keepAliveView != null) return
+    // Re-add if the system dropped the window (e.g. overlay permission revoked, then re-granted).
+    if (keepAliveView?.isAttachedToWindow == true) return
+    keepAliveView = null
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !android.provider.Settings.canDrawOverlays(context)) return
     val view = View(context)
     @Suppress("DEPRECATION")
