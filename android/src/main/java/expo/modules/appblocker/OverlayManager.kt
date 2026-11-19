@@ -53,6 +53,52 @@ class OverlayManager(private val context: Context) {
     }
   }
 
+  private var keepAliveView: View? = null
+
+  /**
+   * A 1px, transparent, untouchable overlay that stays up while the service runs.
+   * Some OEM power managers (Xiaomi HyperOS "SmartPower") pause an app's process as
+   * soon as it has no visible window, even with a foreground service, which stops
+   * the poll loop. A visible overlay window keeps the process classed as visible.
+   */
+  fun showKeepAlive() {
+    if (keepAliveView != null) return
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !android.provider.Settings.canDrawOverlays(context)) return
+    val view = View(context)
+    @Suppress("DEPRECATION")
+    val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+      WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+    } else {
+      WindowManager.LayoutParams.TYPE_PHONE
+    }
+    val params = WindowManager.LayoutParams(
+      1, 1, type,
+      WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+        WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+      PixelFormat.TRANSLUCENT,
+    ).apply {
+      gravity = Gravity.TOP or Gravity.START
+    }
+    try {
+      windowManager.addView(view, params)
+      keepAliveView = view
+      Log.d(TAG, "Keep-alive overlay shown")
+    } catch (e: Exception) {
+      Log.e(TAG, "Failed to add keep-alive overlay", e)
+    }
+  }
+
+  fun hideKeepAlive() {
+    val view = keepAliveView ?: return
+    try {
+      windowManager.removeView(view)
+    } catch (e: Exception) {
+      Log.e(TAG, "Failed to remove keep-alive overlay", e)
+    }
+    keepAliveView = null
+  }
+
   fun hide() {
     val view = overlayView ?: return
     try {

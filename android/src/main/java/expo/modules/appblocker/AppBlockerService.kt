@@ -39,6 +39,10 @@ class AppBlockerService : Service() {
   }
 
   private fun tick() {
+    // Only hold the keep-alive window while there is something to block.
+    if (AppBlockerPrefs.getBlockedPackages(this).isEmpty()) overlayManager.hideKeepAlive()
+    else overlayManager.showKeepAlive()
+
     getCurrentForegroundPackage()?.let { currentForeground = it }
     val foreground = currentForeground
 
@@ -204,6 +208,7 @@ class AppBlockerService : Service() {
     Log.d(TAG, "AppBlockerService onDestroy")
     handler.removeCallbacks(pollRunnable)
     overlayManager.hide()
+    overlayManager.hideKeepAlive()
     super.onDestroy()
   }
 
