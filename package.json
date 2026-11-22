@@ -40,6 +40,6 @@
     "@types/react": "^19.2.15",
     "@types/react-native": "^0.73.0",
     "expo-modules-core": "^57.0.25",
-    "typescript": "~6.0.3"
+    "typescript": "~7.0.2"
   }
 }
